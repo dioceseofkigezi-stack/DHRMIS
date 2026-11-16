@@ -1,25 +1,14 @@
 /**
  * DHRMIS - Organizational Hierarchy Types
- * Diocese > Archdeaconry > Parish > LocalChurch
+ * Archdeaconry > Parish > LocalChurch (within the Diocese of Kigezi)
  * Board > Department > Institution > Position
  */
 
 // ─── Church Hierarchy ─────────────────────────────────────────────────────────
 
-export interface Diocese {
-  id: string;
-  name: string;
-  code: string;
-  region?: string;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface Archdeaconry {
   id: string;
   name: string;
-  dioceseId: string;
   region?: string;
   isActive: boolean;
   order: number;

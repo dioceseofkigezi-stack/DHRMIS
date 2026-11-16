@@ -3,11 +3,52 @@ DO $test$
 DECLARE
   policy_check TEXT;
   access_function TEXT;
+  scope_function TEXT;
   management_function TEXT;
   placement_policy TEXT;
 BEGIN
   IF (SELECT COUNT(*) FROM public.personnel_domains) <> 7 THEN
     RAISE EXCEPTION 'Expected a Secretariat domain and six Board personnel domains';
+  END IF;
+
+  IF to_regclass('public.dioceses') IS NOT NULL
+     OR EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND column_name IN ('diocese_id', 'dioceseid', 'tenant_id', 'tenantid')
+     ) THEN
+    RAISE EXCEPTION 'Single-Diocese installations must not retain Diocese or tenant identifiers';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.user_scopes'::regclass
+      AND conname = 'user_scopes_scope_type_check'
+      AND pg_get_constraintdef(oid) ILIKE '%Diocese%'
+  ) OR EXISTS (
+    SELECT 1 FROM public.user_scopes WHERE scope_type = 'Diocese'
+  ) OR EXISTS (
+    SELECT 1 FROM public.organizational_scopes WHERE scope_type = 'Diocese'
+  ) THEN
+    RAISE EXCEPTION 'User and directory scopes must not include a Diocese identity scope';
+  END IF;
+
+  SELECT pg_get_functiondef('public.user_has_active_scope(text,uuid)'::regprocedure)
+  INTO scope_function;
+  IF scope_function ILIKE '%Diocese%' OR scope_function ILIKE '%diocese_id%' THEN
+    RAISE EXCEPTION 'Authorization must use role and organizational scopes without a Diocese identifier';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'parishes'
+      AND column_name = 'archdeaconry_id'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'local_churches'
+      AND column_name = 'parish_id'
+  ) THEN
+    RAISE EXCEPTION 'Archdeaconry, parish and local church relationships must remain available';
   END IF;
 
   IF (SELECT COUNT(*) FROM public.roles WHERE is_active IS TRUE) <> 8
@@ -30,9 +71,26 @@ BEGIN
     RAISE EXCEPTION 'Administrator assignments must use one canonical role and one active account';
   END IF;
 
-  IF (SELECT COUNT(DISTINCT permission_code) FROM public.role_permissions
-      WHERE role_code = 'SUPER_SYSTEM_ADMIN') <> (SELECT COUNT(*) FROM public.permissions) THEN
-    RAISE EXCEPTION 'The merged administrator must retain the union of the existing administrator permissions';
+  IF EXISTS (
+    SELECT 1 FROM public.role_permissions AS assignment
+    WHERE assignment.role_code = 'SUPER_SYSTEM_ADMIN'
+      AND assignment.permission_code NOT IN (
+        'SYSTEM_OVERSIGHT', 'SYSTEM_TECHNICAL_ADMIN', 'USER_ACCESS_ADMIN',
+        'SECURITY_MONITORING', 'AUDIT_OVERSIGHT'
+      )
+  ) OR EXISTS (
+    SELECT required.permission_code
+    FROM (VALUES
+      ('SYSTEM_OVERSIGHT'), ('SYSTEM_TECHNICAL_ADMIN'), ('USER_ACCESS_ADMIN'),
+      ('SECURITY_MONITORING'), ('AUDIT_OVERSIGHT')
+    ) AS required(permission_code)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.role_permissions AS assignment
+      WHERE assignment.role_code = 'SUPER_SYSTEM_ADMIN'
+        AND assignment.permission_code = required.permission_code
+    )
+  ) THEN
+    RAISE EXCEPTION 'The platform administrator must have system permissions only';
   END IF;
 
   IF NOT EXISTS (

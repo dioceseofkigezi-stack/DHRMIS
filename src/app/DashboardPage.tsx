@@ -7,7 +7,6 @@ import {
   canAccessWorkspace,
   canManageWorkspacePersonnel,
   getWorkspaceNavigation,
-  personnelWorkspaces,
   type PersonnelWorkspace,
   workspacePath,
 } from "@/core/organizational-scope/workspaces";
@@ -18,13 +17,6 @@ interface Metric {
   table: string;
   value: number | null;
   hint: string;
-}
-
-interface SystemWorkspaceSummary {
-  workspace: PersonnelWorkspace;
-  employees: number | null;
-  assignments: number | null;
-  vacancies: number | null;
 }
 
 const metricPages: Record<string, string> = {
@@ -109,62 +101,6 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
   const metricDefinitions = useMemo(() => workspace ? metricsForWorkspace(workspace, roles) : [], [workspace, roles]);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [error, setError] = useState("");
-  const [systemSummaries, setSystemSummaries] = useState<SystemWorkspaceSummary[]>([]);
-  const [systemSummaryLoading, setSystemSummaryLoading] = useState(false);
-  const [systemSummaryError, setSystemSummaryError] = useState("");
-
-  useEffect(() => {
-    let active = true;
-    async function loadSystemSummaries() {
-      if (!isPlatformAdmin || workspace) {
-        setSystemSummaries([]);
-        setSystemSummaryError("");
-        setSystemSummaryLoading(false);
-        return;
-      }
-      if (!supabase) {
-        setSystemSummaries([]);
-        setSystemSummaryError("Configure Supabase to load system-wide personnel totals.");
-        setSystemSummaryLoading(false);
-        return;
-      }
-
-      const client = supabase;
-      const domains = new Map(personnelDomains.map((domain) => [domain.code, domain]));
-      setSystemSummaryLoading(true);
-      setSystemSummaryError("");
-      const summaries = await Promise.all(personnelWorkspaces.map(async (personnelWorkspace) => {
-        const domain = domains.get(personnelWorkspace.code);
-        if (!domain) return { workspace: personnelWorkspace, employees: null, assignments: null, vacancies: null };
-
-        const resourceCodes = ["employees", "assignments", "vacancies"] as const;
-        const results = await Promise.all(resourceCodes.map(async (resourceCode) => {
-          const { data, error: queryError } = await client.rpc("count_personnel_domain_records", {
-            target_domain_id: domain.id,
-            resource_code: resourceCode,
-          });
-          const count = Number(data);
-          return { resourceCode, count: queryError || !Number.isFinite(count) ? null : count, failed: Boolean(queryError) };
-        }));
-        const counts = Object.fromEntries(results.map((result) => [result.resourceCode, result.count]));
-        return {
-          workspace: personnelWorkspace,
-          employees: counts.employees ?? null,
-          assignments: counts.assignments ?? null,
-          vacancies: counts.vacancies ?? null,
-          failed: results.some((result) => result.failed),
-        };
-      }));
-      if (!active) return;
-      setSystemSummaries(summaries);
-      setSystemSummaryError(summaries.some((summary) => "failed" in summary && summary.failed)
-        ? "Some department totals could not be loaded. Refresh or check the administrator's access."
-        : "");
-      setSystemSummaryLoading(false);
-    }
-    void loadSystemSummaries();
-    return () => { active = false; };
-  }, [isPlatformAdmin, workspace, personnelDomains]);
 
   useEffect(() => {
     let active = true;
@@ -202,10 +138,41 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
   }, [workspace, activeDomain, hasWorkspaceAccess, metricDefinitions]);
 
   if (workspace && !hasWorkspaceAccess) {
-    return <div className="page-content"><div className="empty-state"><div className="empty-mark">Restricted</div><h2>Workspace access required</h2><p>Your account does not have an active scope for {workspace.name}.</p></div></div>;
+    return <div className="page-content"><div className="empty-state"><div className="empty-mark">Restricted</div><h2>Workspace access required</h2><p>This account cannot open personnel workspaces.</p></div></div>;
   }
 
   if (!workspace) {
+    if (isPlatformAdmin) {
+      const systemAdminLinks = [
+        ["/admin/users", "Users, roles & permissions"],
+        ["/admin/scopes", "Account access scopes"],
+        ["/admin/sessions", "Sign-in sessions"],
+        ["/security", "Security events"],
+        ["/audit", "Audit logs"],
+        ["/settings", "System configuration"],
+      ].filter(([path]) => canAccessModule(path, roles));
+
+      return (
+        <div className="page-content">
+          <header className="page-heading">
+            <div><p className="eyebrow">SYSTEM ADMINISTRATION</p><h1><Icon name="overview" size={23} />Super/System Administrator</h1><p className="muted">Manage accounts, access, security, audit records, and system configuration.</p></div>
+          </header>
+          <section className="panel" aria-label="System administration">
+            <div className="panel-heading"><div><p className="eyebrow">SYSTEM FUNCTIONS</p><h2>Administration</h2></div></div>
+            <div className="quick-link-grid">
+              {systemAdminLinks.map(([path, label], index) => (
+                <Link className="quick-link" to={path} key={path}>
+                  <span className={`quick-link-icon quick-link-${index % 6}`}><Icon name={getPathIcon(path)} size={18} /></span>
+                  <span><strong>{label}</strong><small>System administration</small></span>
+                  <span className="quick-link-arrow"><Icon name="arrowRight" size={15} /></span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        </div>
+      );
+    }
+
     const quickLinks = ["/people", "/leave", "/recruitment", "/applicants", "/assignments", "/documents"];
     const scopedPersonnelRoles = ["SECRETARIAT_USER", "MISSION_BOARD_USER", "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER", "LAND_FINANCE_BOARD_USER", "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER"];
     const missingPersonnelScope = workspaceDomainCodes.length === 0 && roles.some((role) => scopedPersonnelRoles.includes(role));
@@ -213,21 +180,9 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
     return (
       <div className="page-content">
         <header className="page-heading">
-          <div><p className="eyebrow">DIOCESE OF KIGEZI</p><h1><Icon name="overview" size={23} />{isPlatformAdmin ? "Super/System Administrator Dashboard" : "Your authorized workspaces"}</h1><p className="muted">{isPlatformAdmin ? "Review current workforce, assignments and vacancies across the Secretariat and all six Boards." : "Open the personnel area assigned to your role and organizational scope."}</p></div>
+          <div><p className="eyebrow">DIOCESE OF KIGEZI</p><h1><Icon name="overview" size={23} />Your authorized workspaces</h1><p className="muted">Open the personnel area assigned to your role and organizational scope.</p></div>
         </header>
-        {isPlatformAdmin ? <section className="panel admin-system-overview" aria-label="System-wide department totals">
-          <div className="panel-heading"><div><p className="eyebrow">SYSTEM-WIDE OVERSIGHT</p><h2>Personnel domains</h2><p className="muted">Live totals from the authorized department reporting function.</p></div></div>
-          {systemSummaryError && <div className="notice notice-warning" role="status">{systemSummaryError}</div>}
-          {systemSummaryLoading ? <p className="muted" role="status">Loading system-wide totals…</p> : <div className="workspace-card-grid">
-            {systemSummaries.map((summary) => (
-              <Link className="workspace-card" to={`/${summary.workspace.slug}`} key={summary.workspace.code}>
-                <span className="workspace-card-icon"><Icon name={getWorkspaceIcon(summary.workspace.code)} size={18} /></span>
-                <span className="workspace-card-copy"><strong>{summary.workspace.name}</strong><small>Employees {summary.employees?.toLocaleString() ?? "—"} · Assignments {summary.assignments?.toLocaleString() ?? "—"} · Open vacancies {summary.vacancies?.toLocaleString() ?? "—"}</small></span>
-                <span className="workspace-card-arrow"><Icon name="arrowRight" size={16} /></span>
-              </Link>
-            ))}
-          </div>}
-        </section> : workspaces.length > 0 && <WorkspaceCards workspaces={workspaces} />}
+        {workspaces.length > 0 && <WorkspaceCards workspaces={workspaces} />}
         {visibleQuickLinks.length > 0 && <section className="panel dashboard-self-service">
           <div className="panel-heading"><div><p className="eyebrow">PERSONAL ACCESS</p><h2>Available records</h2></div></div>
           <div className="workspace-shortcuts">{visibleQuickLinks.map((path) => <Link className="button button-secondary button-small" to={path} key={path}><Icon name={getPathIcon(path)} size={14} />{path === "/people" ? "Employee directory" : path.slice(1).replaceAll("/", " · ").replaceAll("-", " ")}</Link>)}</div>

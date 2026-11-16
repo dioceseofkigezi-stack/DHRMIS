@@ -389,7 +389,7 @@ export default function ModulePage() {
       {hasAccess && <>
         <header className="page-heading">
           <div><p className="eyebrow">{pageConfig.group.toUpperCase()}</p><h1><Icon name={getPathIcon(pageConfig.path)} size={23} />{pageConfig.label}</h1><p className="muted">{pageConfig.description}</p></div>
-          {canEdit && (!pageConfig.singleRecord || count === 0) && <button className="button button-primary" onClick={openCreate} disabled={!online}><Icon name="plus" size={15} />{pageConfig.path === "/admin/users" ? "Assign a role" : pageConfig.singleRecord ? "Set up Diocese profile" : "New record"}</button>}
+          {canEdit && <button className="button button-primary" onClick={openCreate} disabled={!online}><Icon name="plus" size={15} />{pageConfig.path === "/admin/users" ? "Assign a role" : "New record"}</button>}
         </header>
         {pageConfig.path === "/admin/users" && <UserRegistrationPanel online={online} />}
         {!supabase && <div className="notice notice-warning">The Supabase data service is not configured. Contact your administrator.</div>}

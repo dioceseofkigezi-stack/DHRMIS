@@ -9,10 +9,10 @@ import { PermissionCategory, AccessLevel, RoleLevel } from "@/types";
 
 export interface OrganizationalScope {
   id: string;
-  scopeType: "Diocese" | "Archdeaconry" | "Parish" | "Institution" | "Department" | "Board";
+  scopeType: "Archdeaconry" | "Parish" | "Institution" | "Department" | "Board";
   scopeId: string;
   scopeName: string;
-  hierarchyPath: string; // e.g. "Diocese/Archdeaconry/Parish"
+  hierarchyPath: string; // e.g. "Archdeaconry/Parish"
   level: "DioceseWide" | "Board" | "Archdeaconry" | "Parish" | "Institution" | "Private";
   isSensitive: boolean;
   createdAt: Date;
@@ -107,7 +107,7 @@ export interface UserScope {
   userId: string;
   scopeId: string;
   assignedBy: string;
-  scopeType: "Diocese" | "Archdeaconry" | "Parish" | "Institution" | "Department";
+  scopeType: "Archdeaconry" | "Parish" | "Institution" | "Department";
   scopeName: string;
   purpose: string;
   expiresAt?: Date;

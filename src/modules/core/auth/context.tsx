@@ -106,10 +106,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      const [roleResult, scopeResult, domainResult] = await Promise.all([
-        supabase.from("user_roles")
-          .select("role_code, isactive, issuspended, accountexpiry, lockeduntil")
-          .eq("user_id", session.user.id),
+      const roleResult = await supabase.from("user_roles")
+        .select("role_code, isactive, issuspended, accountexpiry, lockeduntil")
+        .eq("user_id", session.user.id);
+
+      if (!active) return;
+      if (roleResult.error) {
+        setRoleError("Unable to load your system roles.");
+        setRoleLoading(false);
+        return;
+      }
+
+      const now = Date.now();
+      const activeRoles = (roleResult.data ?? []).filter((role) =>
+        role.isactive === true &&
+        role.issuspended !== true &&
+        (!role.accountexpiry || Date.parse(role.accountexpiry) > now) &&
+        (!role.lockeduntil || Date.parse(role.lockeduntil) <= now),
+      );
+      setRoles(activeRoles.map((role) => role.role_code));
+
+      if (activeRoles.some((role) => role.role_code === "SUPER_SYSTEM_ADMIN")) {
+        setPersonnelDomains([]);
+        setWorkspaceDomainCodes([]);
+        setRoleLoading(false);
+        return;
+      }
+
+      const [scopeResult, domainResult] = await Promise.all([
         supabase.from("user_scopes")
           .select("scope_type, scope_id, isactive, expiresat")
           .eq("user_id", session.user.id),
@@ -119,25 +143,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ]);
 
       if (!active) return;
-      if (roleResult.error) {
-        setRoleError("Unable to load your system roles.");
-        setRoleLoading(false);
-        return;
-      }
       if (scopeResult.error || domainResult.error) {
         setRoleError("Unable to load your organizational access scopes.");
         setRoleLoading(false);
         return;
       }
-
-      const now = Date.now();
-      const activeRoles = (roleResult.data ?? []).filter((role) =>
-          role.isactive === true &&
-          role.issuspended !== true &&
-          (!role.accountexpiry || Date.parse(role.accountexpiry) > now) &&
-          (!role.lockeduntil || Date.parse(role.lockeduntil) <= now),
-        );
-      setRoles(activeRoles.map((role) => role.role_code));
 
       const activeScopes = (scopeResult.data ?? []).filter((scope) =>
         scope.isactive === true && (!scope.expiresat || Date.parse(scope.expiresat) > now),
@@ -180,9 +190,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const domainCodes = domains.filter((domain) =>
         personnelDomainScopeIds.has(domain.id) || Boolean(domain.boardId && (boardScopeIds.has(domain.boardId) || legacyBoardIds.has(domain.boardId))),
       ).map((domain) => domain.code);
-      if (activeRoles.some((role) => role.role_code === "SUPER_SYSTEM_ADMIN")) {
-        domainCodes.push(...domains.map((domain) => domain.code));
-      }
       setWorkspaceDomainCodes([...new Set(domainCodes)]);
 
       setRoleLoading(false);

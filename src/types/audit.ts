@@ -10,6 +10,7 @@ import { AuditAction, AuditResult } from "./core";
 export interface AuditLog {
   id: string;
   userId: string;
+  userName?: string | null;
   action: AuditAction;
   module: string;
   recordId?: string;

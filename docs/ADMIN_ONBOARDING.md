@@ -29,14 +29,14 @@ VALUES (
 
 Use the Auth user ID from the Supabase dashboard, not an email address supplied by an untrusted client. Only trusted database operators should run this statement. The database permits one active account per designated role.
 
-After signing in, use **Personnel domains** to review the Secretariat domain and the six Board domains. Use **User access** to invite a named person into an available designated role. The database assigns the matching PersonnelDomain scope automatically:
+After signing in, use **User access** to invite a named person into an available designated role. The database assigns the matching PersonnelDomain scope automatically:
 
 - `SECRETARIAT_USER` is scoped to `SECRETARIAT` and manages Secretariat personnel and the ecclesiastical structure.
 - Each Board role is scoped to its matching Board personnel domain.
 - Archdeaconries, parishes and local churches remain organizational records under the Secretariat. They do not receive independent accounts.
-- `SUPER_SYSTEM_ADMIN` (Super/System Administrator) combines system-wide oversight, technical administration, security monitoring, audit review and the existing administrator capabilities.
+- `SUPER_SYSTEM_ADMIN` (Super/System Administrator) manages system accounts, role permissions, security, audit records, sessions and system configuration. It has no access to departmental dashboards, employee records, HR forms or departmental reports.
 
-Keep the Super/System Administrator account protected and use it to invite, suspend or replace the one named account holder for each role. The Super/System Administrator can review recorded sign-ins and revoke a session from **Session management**. Role, scope and session status are enforced by database policies; hiding a page in the frontend is not an authorization control.
+Keep the Super/System Administrator account protected and use it to invite, suspend or replace the one named account holder for each role. The Super/System Administrator can review recorded sign-ins and revoke a session from **Session management**. Departmental users manage their own personnel data. Role, scope and session status are enforced by database policies; hiding a page in the frontend is not an authorization control.
 
 After applying the decentralized-workspace migration, review historical rows that could not be mapped safely before granting access:
 

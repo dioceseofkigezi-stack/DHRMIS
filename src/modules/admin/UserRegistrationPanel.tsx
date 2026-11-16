@@ -70,7 +70,7 @@ export default function UserRegistrationPanel({ online }: { online: boolean }) {
         <div>
           <p className="eyebrow">ACCOUNT PROVISIONING</p>
           <h2 id="register-user-title">Register a user</h2>
-          <p className="muted">Invite a named account holder. Department roles receive their matching scope automatically; the platform administrator has system-wide access.</p>
+          <p className="muted">Invite a named account holder and assign the appropriate system or departmental role. Departmental roles manage their own personnel data.</p>
         </div>
       </div>
       {error && <div className="notice notice-error registration-message" role="alert">{error}</div>}

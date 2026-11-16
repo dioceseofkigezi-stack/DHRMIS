@@ -28,25 +28,30 @@ describe("system module registry", () => {
     expect(canAccessModule("/payroll", ["LAND_FINANCE_BOARD_USER"])).toBe(true);
   });
 
-  it("lets administrators link provisioned roles to an employee record", () => {
-    expect(getModule("/admin/users")?.fields?.some((field) =>
-      field.name === "employee_id" && field.kind === "employee",
-    )).toBe(true);
+  it("keeps employee links out of system account management", () => {
+    expect(getModule("/admin/users")?.fields?.some((field) => field.name === "employee_id")).toBe(false);
+    expect(getModule("/admin/users")?.columns).not.toContain("employee_id");
   });
 
   it("restricts exports to roles permitted for each data category", () => {
     expect(canExportModule("/people", ["SECRETARIAT_USER"])).toBe(true);
-    expect(canExportModule("/people", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
+    expect(canExportModule("/people", ["SUPER_SYSTEM_ADMIN"])).toBe(false);
     expect(canExportModule("/payroll", ["LAND_FINANCE_BOARD_USER"])).toBe(true);
     expect(canExportModule("/payroll", ["MISSION_BOARD_USER"])).toBe(false);
     expect(canExportModule("/safeguarding", ["HEALTH_BOARD_USER"])).toBe(false);
   });
 
-  it("gives the merged platform administrator the combined administrator capabilities", () => {
-    expect(canAccessModule("/people", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
+  it("limits the platform administrator to system administration modules", () => {
+    expect(canAccessModule("/people", ["SUPER_SYSTEM_ADMIN"])).toBe(false);
+    expect(canWriteModule("/people", ["SUPER_SYSTEM_ADMIN"])).toBe(false);
+    expect(canAccessModule("/payroll", ["SUPER_SYSTEM_ADMIN"])).toBe(false);
     expect(canAccessModule("/admin/scopes", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
+    expect(canAccessModule("/admin/users", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
     expect(canAccessModule("/admin/sessions", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
     expect(canAccessModule("/security", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
+    expect(canAccessModule("/settings", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
+    expect(canAccessModule("/audit", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
+    expect(canAccessModule("/people", ["SUPER_SYSTEM_ADMIN", "ICT_BOARD_USER"])).toBe(false);
     expect(canAccessModule("/admin/scopes", ["ICT_BOARD_USER"])).toBe(false);
     expect(canAccessModule("/admin/sessions", ["EDUCATION_BOARD_USER"])).toBe(false);
   });

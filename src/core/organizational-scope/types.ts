@@ -1,26 +1,15 @@
 /**
  * DHRMIS - Organizational Scope Types
- * Diocese > Archdeaconry > Parish > LocalChurch
+ * Archdeaconry > Parish > LocalChurch (within the Diocese of Kigezi)
  * Board > Department > Institution > Position
  */
 
 
 // ─── Church Hierarchy ─────────────────────────────────────────────────────────
 
-export interface Diocese {
-  id: string;
-  name: string;
-  code: string;
-  region?: string;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface Archdeaconry {
   id: string;
   name: string;
-  dioceseId: string;
   region?: string;
   isActive: boolean;
   order: number;
@@ -96,7 +85,7 @@ export interface ScopeNode {
   id: string;
   name: string;
   code: string;
-  level: "Diocese" | "Archdeaconry" | "Parish" | "LocalChurch" | "Board" | "Department" | "Institution";
+  level: "Archdeaconry" | "Parish" | "LocalChurch" | "Board" | "Department" | "Institution";
   parentId?: string;
   parentLevel?: string;
   path: string;
@@ -120,8 +109,8 @@ export interface HierarchyRelationship {
   id: string;
   parentId: string;
   childId: string;
-  parentLevel: "Diocese" | "Archdeaconry" | "Parish" | "LocalChurch" | "Board" | "Department" | "Institution";
-  childLevel: "Diocese" | "Archdeaconry" | "Parish" | "LocalChurch" | "Board" | "Department" | "Institution";
+  parentLevel: "Archdeaconry" | "Parish" | "LocalChurch" | "Board" | "Department" | "Institution";
+  childLevel: "Archdeaconry" | "Parish" | "LocalChurch" | "Board" | "Department" | "Institution";
   relationshipType: "Contains" | "LocatedIn" | "BelongsTo" | "ReportsTo";
   isActive: boolean;
   createdAt: Date;
@@ -132,7 +121,6 @@ export interface HierarchyRelationship {
 
 export interface OrganizationalConfig {
   id: string;
-  dioceseId: string;
   archdeaconries: string[]; // Archdeaconry IDs
   parishes: string[]; // Parish IDs
   localChurches: string[]; // Local Church IDs

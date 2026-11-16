@@ -22,7 +22,6 @@ export interface ModuleConfig {
   defaultValues?: Record<string, unknown>;
   filter?: { column: string; value: string };
   readOnly?: boolean;
-  singleRecord?: boolean;
   allowDelete?: boolean;
   readAuditCategory?: string;
 }
@@ -260,12 +259,8 @@ export const modulePages: ModuleConfig[] = [
     { name: "description", label: "Description", kind: "textarea" }, { name: "issensitive", label: "Sensitive department", kind: "checkbox" },
     { name: "isactive", label: "Active", kind: "checkbox" },
   ] },
-  { path: "/organization/dioceses", label: "Diocese profile", group: "Administration", description: "Manage the identity and regional details for this Diocese.", table: "dioceses", titleField: "name", columns: ["code", "name", "region", "isactive"], singleRecord: true, fields: [
-    { name: "name", label: "Name", required: true }, { name: "code", label: "Code", required: true },
-    { name: "region", label: "Region" }, { name: "isactive", label: "Active", kind: "checkbox" },
-  ] },
-  { path: "/organization/archdeaconries", label: "Archdeaconries", group: "Administration", description: "Manage archdeaconries within the diocesan structure.", table: "archdeaconries", titleField: "name", columns: ["name", "diocese_id", "region", "order_num", "isactive"], fields: [
-    { name: "name", label: "Name", required: true }, { name: "diocese_id", label: "Diocese ID", required: true },
+  { path: "/organization/archdeaconries", label: "Archdeaconries", group: "Administration", description: "Manage archdeaconries within the diocesan structure.", table: "archdeaconries", titleField: "name", columns: ["name", "region", "order_num", "isactive"], fields: [
+    { name: "name", label: "Name", required: true },
     { name: "region", label: "Region" }, { name: "order_num", label: "Display order", kind: "number" },
     { name: "isactive", label: "Active", kind: "checkbox" },
   ] },
@@ -300,16 +295,15 @@ export const modulePages: ModuleConfig[] = [
     { name: "salary_scale", label: "Salary scale" }, { name: "description", label: "Description", kind: "textarea" },
     { name: "isactive", label: "Active", kind: "checkbox" },
   ] },
-  { path: "/audit", label: "Audit & security", group: "Administration", description: "Review audit and security events permitted by your account.", table: "audit_log", titleField: "action", columns: ["created_at", "action", "module", "result", "purpose"], readOnly: true },
+  { path: "/audit", label: "Audit & security", group: "Administration", description: "Review audit and security events permitted by your account.", table: "audit_log", titleField: "action", columns: ["created_at", "user_name", "action", "module", "result", "purpose"], readOnly: true },
   { path: "/security", label: "Security events", group: "Administration", description: "Review security events permitted by your account.", table: "security_event", titleField: "event_type", columns: ["created_at", "event_type", "severity", "component", "acknowledged", "resolved"], readOnly: true },
   { path: "/settings", label: "System settings", group: "Administration", description: "Review and update system configuration allowed by your role.", table: "system_config", titleField: "config_key", columns: ["config_key", "config_section", "description", "is_valid"], fields: [
     { name: "config_key", label: "Configuration key", required: true }, { name: "config_value", label: "Configuration value", required: true, kind: "textarea" },
     { name: "config_section", label: "Section", required: true }, { name: "description", label: "Description", kind: "textarea" },
     { name: "is_valid", label: "Valid", kind: "checkbox" },
   ] },
-  { path: "/admin/users", label: "User registration & access", group: "Administration", description: "Invite the designated account holders and review account access.", table: "user_roles", titleField: "role_code", columns: ["user_id", "role_code", "employee_id", "isactive", "issuspended", "accountexpiry"], fields: [
+  { path: "/admin/users", label: "User registration & access", group: "Administration", description: "Invite designated account holders and manage system access.", table: "user_roles", titleField: "role_code", columns: ["user_id", "role_code", "isactive", "issuspended", "accountexpiry"], fields: [
     { name: "user_id", label: "Existing account user ID", required: true },
-    { name: "employee_id", label: "Linked employee record", kind: "employee" },
     { name: "role_code", label: "Role", kind: "select", required: true, options: [
       "SUPER_SYSTEM_ADMIN", "SECRETARIAT_USER", "MISSION_BOARD_USER",
       "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER", "LAND_FINANCE_BOARD_USER",
@@ -325,7 +319,7 @@ export const modulePages: ModuleConfig[] = [
   { path: "/admin/scopes", label: "User scopes", group: "Administration", description: "Assign temporary or permanent organizational scopes to provisioned accounts.", table: "user_scopes", titleField: "scope_name", columns: ["user_id", "scope_type", "scope_name", "expiresAt", "isActive"], fields: [
     { name: "user_id", label: "Account user ID", required: true },
     { name: "scope_id", label: "Organization record ID", required: true },
-    { name: "scope_type", label: "Scope type", kind: "select", required: true, options: ["Diocese", "Archdeaconry", "Parish", "Institution", "Department", "Board", "PersonnelDomain"] },
+    { name: "scope_type", label: "Scope type", kind: "select", required: true, options: ["Archdeaconry", "Parish", "Institution", "Department", "Board", "PersonnelDomain"] },
     { name: "scope_name", label: "Scope name", required: true },
     { name: "purpose", label: "Purpose" },
     { name: "expiresAt", label: "Expiry date", kind: "date" },
@@ -341,43 +335,40 @@ const businessRoles = [
   "SECRETARIAT_USER", "MISSION_BOARD_USER", "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER",
   "LAND_FINANCE_BOARD_USER", "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER",
 ];
-const allBusinessRoles = ["SUPER_SYSTEM_ADMIN", ...businessRoles];
+const systemAdminOnlyPaths = new Set([
+  "/admin/users", "/admin/scopes", "/admin/sessions", "/settings", "/security", "/audit",
+]);
 const platformAdminRoles = ["SUPER_SYSTEM_ADMIN"];
-const financeRoles = ["SUPER_SYSTEM_ADMIN", "LAND_FINANCE_BOARD_USER"];
+const financeRoles = ["LAND_FINANCE_BOARD_USER"];
 
 export function moduleReadRoles(path: string) {
-  if (path === "/admin/users" || path === "/admin/scopes") return ["SUPER_SYSTEM_ADMIN"];
-  if (path === "/admin/sessions") return platformAdminRoles;
-  if (path === "/settings") return platformAdminRoles;
-  if (path === "/security") return platformAdminRoles;
-  if (path === "/audit") return platformAdminRoles;
-  if (path === "/safeguarding") return ["SUPER_SYSTEM_ADMIN"];
+  if (systemAdminOnlyPaths.has(path)) return platformAdminRoles;
+  if (path === "/safeguarding") return [];
   if (path === "/payroll" || path === "/benefits" || path.startsWith("/pension")) return financeRoles;
   if (path.startsWith("/organization/archdeaconries") || path.startsWith("/organization/parishes") || path.startsWith("/organization/local-churches")) {
-    return ["SUPER_SYSTEM_ADMIN", "SECRETARIAT_USER"];
+    return ["SECRETARIAT_USER"];
   }
-  if (path.startsWith("/organization")) return allBusinessRoles;
-  return allBusinessRoles;
+  return businessRoles;
 }
 
 export function moduleWriteRoles(path: string) {
-  if (path === "/admin/users" || path === "/admin/scopes") return ["SUPER_SYSTEM_ADMIN"];
-  if (path === "/admin/sessions") return platformAdminRoles;
-  if (path === "/settings") return platformAdminRoles;
-  if (path === "/safeguarding") return ["SUPER_SYSTEM_ADMIN"];
+  if (systemAdminOnlyPaths.has(path)) return platformAdminRoles;
+  if (path === "/safeguarding") return [];
   if (path === "/payroll" || path === "/benefits" || path.startsWith("/pension")) return financeRoles;
   if (path.startsWith("/organization/archdeaconries") || path.startsWith("/organization/parishes") || path.startsWith("/organization/local-churches")) {
-    return ["SUPER_SYSTEM_ADMIN", "SECRETARIAT_USER"];
+    return ["SECRETARIAT_USER"];
   }
-  return allBusinessRoles;
+  return businessRoles;
 }
 
 export function canAccessModule(path: string, roles: string[]) {
+  if (roles.includes("SUPER_SYSTEM_ADMIN")) return systemAdminOnlyPaths.has(path);
   const allowed = moduleReadRoles(path);
   return roles.some((role) => allowed.includes(role));
 }
 
 export function canWriteModule(path: string, roles: string[]) {
+  if (roles.includes("SUPER_SYSTEM_ADMIN")) return systemAdminOnlyPaths.has(path);
   const allowed = moduleWriteRoles(path);
   return roles.some((role) => allowed.includes(role));
 }

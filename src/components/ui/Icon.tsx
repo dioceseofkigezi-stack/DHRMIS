@@ -87,7 +87,7 @@ export const pathIcons: Record<string, SystemIcon> = {
   "/discipline": "governance", "/safeguarding": "security", "/death": "death",
   "/welfare": "community", "/housing": "home", "/succession": "succession",
   "/documents": "document", "/family": "people", "/organization": "building",
-  "/organization/dioceses": "map", "/organization/archdeaconries": "map",
+  "/organization/archdeaconries": "map",
   "/organization/parishes": "church", "/organization/local-churches": "church",
   "/organization/boards": "board", "/organization/personnel-domains": "layers",
   "/organization/institutions": "school", "/organization/positions": "briefcase",

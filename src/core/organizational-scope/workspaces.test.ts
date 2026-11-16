@@ -24,14 +24,15 @@ describe("personnel workspaces", () => {
     expect(canAccessWorkspace(education, ["ICT_BOARD_USER"], ["EDUCATION"])).toBe(false);
   });
 
-  it("keeps Board personnel access scoped while the platform administrator has system-wide scope", () => {
+  it("keeps Board personnel access scoped and excludes the platform administrator", () => {
     const ict = getWorkspace("ict")!;
     const education = getWorkspace("education")!;
     expect(canAccessWorkspace(ict, ["ICT_BOARD_USER"], ["ICT"])).toBe(true);
     expect(canAccessWorkspace(education, ["ICT_BOARD_USER"], ["ICT"])).toBe(false);
     expect(canManageWorkspacePersonnel(ict, ["ICT_BOARD_USER"])).toBe(true);
-    expect(canManageWorkspacePersonnel(ict, ["SUPER_SYSTEM_ADMIN"])).toBe(true);
-    expect(canAccessWorkspace(education, ["SUPER_SYSTEM_ADMIN"], [])).toBe(true);
+    expect(canManageWorkspacePersonnel(ict, ["SUPER_SYSTEM_ADMIN"])).toBe(false);
+    expect(canAccessWorkspace(education, ["SUPER_SYSTEM_ADMIN"], [])).toBe(false);
+    expect(getWorkspaceNavigation(education, ["SUPER_SYSTEM_ADMIN"])).toEqual([]);
   });
 
   it("uses one human-readable name for the merged administrator role", () => {

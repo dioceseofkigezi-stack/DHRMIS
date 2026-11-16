@@ -69,7 +69,7 @@ export type AuditAction =
 
 // ─── Organizational Hierarchy ────────────────────────────────────────────────
 
-export type OrganizationLevel = "Diocese" | "Archdeaconry" | "Parish" | "LocalChurch";
+export type OrganizationLevel = "Archdeaconry" | "Parish" | "LocalChurch";
 export type InstitutionType =
   | "PrimarySchool"
   | "SecondarySchool"

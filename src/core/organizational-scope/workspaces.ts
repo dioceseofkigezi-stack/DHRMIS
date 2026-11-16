@@ -115,15 +115,17 @@ export function canAccessWorkspace(
   roles: string[],
   domainCodes: string[],
 ) {
-  if (roles.includes("SUPER_SYSTEM_ADMIN")) return true;
+  if (roles.includes("SUPER_SYSTEM_ADMIN")) return false;
   return roles.includes(workspace.roleCode) && domainCodes.includes(workspace.code);
 }
 
 export function canManageWorkspacePersonnel(workspace: PersonnelWorkspace, roles: string[]) {
-  return roles.includes("SUPER_SYSTEM_ADMIN") || roles.includes(workspace.roleCode);
+  return !roles.includes("SUPER_SYSTEM_ADMIN") && roles.includes(workspace.roleCode);
 }
 
 export function getWorkspaceNavigation(workspace: PersonnelWorkspace, roles: string[]) {
+  if (roles.includes("SUPER_SYSTEM_ADMIN")) return [];
+
   const common = [
     { label: `${workspace.shortName} employees`, path: "/people" },
     { label: "Assignments", path: "/assignments" },
@@ -154,27 +156,15 @@ export function getWorkspaceNavigation(workspace: PersonnelWorkspace, roles: str
     ];
 
   if (["HEALTH", "ICT"].includes(workspace.code)) common.push({ label: workspace.code === "ICT" ? "Certifications" : "Professional licences", path: "/licences" });
-  if (workspace.code === "ICT" && roles.includes("SUPER_SYSTEM_ADMIN")) {
-    common.push({ label: "Security events", path: "/security" });
-  }
   if (workspace.code === "LAND_FINANCE") common.push({ label: "Payroll & benefits", path: "/payroll" });
-  if (roles.includes("SUPER_SYSTEM_ADMIN")) {
-    common.push(
-      { label: "Personnel domains", path: "/organization/personnel-domains" },
-      { label: "User access", path: "/admin/users" },
-      { label: "User scopes", path: "/admin/scopes" },
-    );
-  }
 
   const allLinks = [...common, ...domainSpecific];
   return allLinks.filter((link) => {
-    if (link.path === "/security") return roles.includes("SUPER_SYSTEM_ADMIN");
-    if (link.path.startsWith("/admin/")) return roles.includes("SUPER_SYSTEM_ADMIN");
     if (["/organization/archdeaconries", "/organization/parishes", "/organization/local-churches"].includes(link.path)) {
-      return roles.includes("SUPER_SYSTEM_ADMIN") || roles.includes("SECRETARIAT_USER");
+      return roles.includes("SECRETARIAT_USER");
     }
-    if (link.path === "/payroll") return roles.includes("SUPER_SYSTEM_ADMIN") || roles.includes("LAND_FINANCE_BOARD_USER");
-    return roles.includes("SUPER_SYSTEM_ADMIN") || roles.includes(workspace.roleCode);
+    if (link.path === "/payroll") return roles.includes("LAND_FINANCE_BOARD_USER");
+    return roles.includes(workspace.roleCode);
   });
 }
 
