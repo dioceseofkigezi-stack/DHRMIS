@@ -1,0 +1,14 @@
+{
+  "name": "Diocese of Kigezi HRMIS",
+  "short_name": "DHRMIS",
+  "description": "Diocese of Kigezi Human Resource Management Information System",
+  "lang": "en-UG",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f7f6",
+  "theme_color": "#173c2c",
+  "icons": [
+    { "src": "/dhrmis-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

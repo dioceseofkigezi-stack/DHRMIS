@@ -1,0 +1,2 @@
+-- This project intentionally has no demo users or production data.
+-- Provision the first administrator using docs/ADMIN_ONBOARDING.md.

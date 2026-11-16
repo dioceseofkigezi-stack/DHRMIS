@@ -1,0 +1,9 @@
+.scroller { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; text-align: left; }
+.table th { padding: 11px 14px; border-bottom: 1px solid #e9eeeb; color: #708077; background: #fafbfa; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.table td { max-width: 260px; padding: 12px 14px; overflow: hidden; border-top: 1px solid #eff2f0; color: #526158; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.table tbody tr:hover { background: #fbfcfb; }
+.sortButton { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; text-transform: capitalize; cursor: pointer; }
+.sortButton:focus-visible { outline: 2px solid #347651; outline-offset: 3px; }
+.actionsHeading, .actions { text-align: right; }
+.actions { white-space: nowrap; }
