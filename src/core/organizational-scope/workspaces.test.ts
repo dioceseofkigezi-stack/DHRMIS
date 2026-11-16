@@ -18,23 +18,23 @@ describe("personnel workspaces", () => {
   it("requires both the relevant role and an authorized workspace scope", () => {
     const education = getWorkspace("education")!;
     const health = getWorkspace("health")!;
-    expect(canAccessWorkspace(education, ["BoardHR"], ["EDUCATION"])).toBe(true);
-    expect(canAccessWorkspace(health, ["BoardHR"], ["EDUCATION"])).toBe(false);
-    expect(canAccessWorkspace(education, ["ICTAdministrator"], ["EDUCATION"])).toBe(false);
+    expect(canAccessWorkspace(education, ["EDUCATION_BOARD_USER"], ["EDUCATION"])).toBe(true);
+    expect(canAccessWorkspace(health, ["EDUCATION_BOARD_USER"], ["EDUCATION"])).toBe(false);
+    expect(canAccessWorkspace(education, ["ICT_BOARD_USER"], ["EDUCATION"])).toBe(false);
   });
 
   it("keeps ICT system access separate from ICT personnel management", () => {
     const ict = getWorkspace("ict")!;
-    expect(canAccessWorkspace(ict, ["ICTAdministrator"], ["ICT"])).toBe(true);
-    expect(canManageWorkspacePersonnel(ict, ["ICTAdministrator"])).toBe(false);
-    expect(canManageWorkspacePersonnel(ict, ["BoardHR"])).toBe(true);
+    expect(canAccessWorkspace(ict, ["ICT_BOARD_USER"], ["ICT"])).toBe(true);
+    expect(canManageWorkspacePersonnel(ict, ["ICT_BOARD_USER"])).toBe(true);
+    expect(canManageWorkspacePersonnel(ict, ["SYSTEM_ADMIN"])).toBe(false);
   });
 
   it("keeps ecclesiastical navigation in the Secretariat workspace", () => {
     const secretariat = getWorkspace("secretariat")!;
     const mission = getWorkspace("mission")!;
-    const secretariatPaths = getWorkspaceNavigation(secretariat, ["CentralHR"]).map((item) => item.path);
-    const missionPaths = getWorkspaceNavigation(mission, ["BoardHR"]).map((item) => item.path);
+    const secretariatPaths = getWorkspaceNavigation(secretariat, ["SECRETARIAT_USER"]).map((item) => item.path);
+    const missionPaths = getWorkspaceNavigation(mission, ["MISSION_BOARD_USER"]).map((item) => item.path);
     expect(secretariatPaths).toContain("/organization/archdeaconries");
     expect(secretariatPaths).toContain("/organization/parishes");
     expect(secretariatPaths).toContain("/organization/local-churches");

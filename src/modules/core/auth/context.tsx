@@ -16,6 +16,39 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
 }
 
+function sessionIdFromToken(accessToken: string) {
+  try {
+    const payload = accessToken.split(".")[1];
+    if (!payload) return "";
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const claims = JSON.parse(atob(base64)) as Record<string, unknown>;
+    return typeof claims.session_id === "string" ? claims.session_id : "";
+  } catch {
+    return "";
+  }
+}
+
+async function recordAuthSession(session: Session) {
+  if (!supabase) throw new Error("The authentication service is not configured.");
+  const authSessionId = sessionIdFromToken(session.access_token);
+  if (!authSessionId) throw new Error("The authentication session identifier is missing.");
+  const expiresAt = session.expires_at
+    ? new Date(session.expires_at * 1000).toISOString()
+    : new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const agent = typeof navigator === "undefined" ? "DHRMIS client" : navigator.userAgent.slice(0, 1000);
+  const { error } = await supabase.from("user_sessions").upsert({
+    user_id: session.user.id,
+    auth_session_id: authSessionId,
+    device_info: "DHRMIS web session",
+    user_agent: agent,
+    scope_ids: [],
+    isactive: true,
+    expiresat: expiresAt,
+    lastactivityat: new Date().toISOString(),
+  }, { onConflict: "auth_session_id" });
+  if (error) throw error;
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -64,28 +97,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setRoleLoading(true);
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role_code, isactive, issuspended, accountexpiry, lockeduntil")
-        .eq("user_id", session.user.id);
-
-      if (!active) return;
-      if (error) {
-        setRoleError("Unable to load your system roles.");
-        setRoleLoading(false);
+      try {
+        await recordAuthSession(session);
+      } catch {
+        if (active) {
+          setRoleError("Your sign-in session could not be recorded. Sign out and contact your system administrator.");
+          setRoleLoading(false);
+        }
         return;
       }
-
-      const now = Date.now();
-      const activeRoles = (data ?? []).filter((role) =>
-          role.isactive === true &&
-          role.issuspended !== true &&
-          (!role.accountexpiry || Date.parse(role.accountexpiry) > now) &&
-          (!role.lockeduntil || Date.parse(role.lockeduntil) <= now),
-        );
-      setRoles(activeRoles.map((role) => role.role_code));
-
-      const [{ data: scopeRows, error: scopeError }, { data: domainRows, error: domainError }] = await Promise.all([
+      const [roleResult, scopeResult, domainResult] = await Promise.all([
+        supabase.from("user_roles")
+          .select("role_code, isactive, issuspended, accountexpiry, lockeduntil")
+          .eq("user_id", session.user.id),
         supabase.from("user_scopes")
           .select("scope_type, scope_id, isactive, expiresat")
           .eq("user_id", session.user.id),
@@ -93,17 +117,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .select("id, code, name, board_id, is_secretariat")
           .eq("is_active", true),
       ]);
+
       if (!active) return;
-      if (scopeError || domainError) {
+      if (roleResult.error) {
+        setRoleError("Unable to load your system roles.");
+        setRoleLoading(false);
+        return;
+      }
+      if (scopeResult.error || domainResult.error) {
         setRoleError("Unable to load your organizational access scopes.");
         setRoleLoading(false);
         return;
       }
 
-      const activeScopes = (scopeRows ?? []).filter((scope) =>
+      const now = Date.now();
+      const activeRoles = (roleResult.data ?? []).filter((role) =>
+          role.isactive === true &&
+          role.issuspended !== true &&
+          (!role.accountexpiry || Date.parse(role.accountexpiry) > now) &&
+          (!role.lockeduntil || Date.parse(role.lockeduntil) <= now),
+        );
+      setRoles(activeRoles.map((role) => role.role_code));
+
+      const activeScopes = (scopeResult.data ?? []).filter((scope) =>
         scope.isactive === true && (!scope.expiresat || Date.parse(scope.expiresat) > now),
       );
-      const domains: PersonnelDomain[] = (domainRows ?? []).map((domain) => ({
+      const domains: PersonnelDomain[] = (domainResult.data ?? []).map((domain) => ({
         id: domain.id,
         code: domain.code,
         name: domain.name,
@@ -141,12 +180,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const domainCodes = domains.filter((domain) =>
         personnelDomainScopeIds.has(domain.id) || Boolean(domain.boardId && (boardScopeIds.has(domain.boardId) || legacyBoardIds.has(domain.boardId))),
       ).map((domain) => domain.code);
-      if (activeRoles.some((role) => role.role_code === "SuperAdministrator")) {
+      if (activeRoles.some((role) => role.role_code === "SUPER_ADMIN")) {
         domainCodes.push(...domains.map((domain) => domain.code));
-      }
-      if (activeRoles.some((role) => ["ArchdeaconryAdmin", "ParishAdmin"].includes(role.role_code)) &&
-          activeScopes.some((scope) => ["Archdeaconry", "Parish"].includes(scope.scope_type))) {
-        domainCodes.push("SECRETARIAT");
       }
       setWorkspaceDomainCodes([...new Set(domainCodes)]);
 
@@ -172,7 +207,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     signOut: async () => {
       if (!supabase) return;
-      const { error } = await supabase.auth.signOut();
+      const { data } = await supabase.auth.getSession();
+      const current = data.session;
+      if (current) {
+        const authSessionId = sessionIdFromToken(current.access_token);
+        if (authSessionId) {
+          await supabase.from("user_sessions").update({ isactive: false })
+            .eq("user_id", current.user.id)
+            .eq("auth_session_id", authSessionId)
+            .eq("isactive", true);
+        }
+      }
+      const { error } = await supabase.auth.signOut({ scope: "local" });
       if (error) throw error;
     },
   }), [session, loading, roles, personnelDomains, workspaceDomainCodes, roleLoading, roleError]);

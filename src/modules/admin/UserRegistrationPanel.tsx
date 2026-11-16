@@ -4,20 +4,15 @@ import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
 
 const roleOptions = [
-  { code: "SuperAdministrator", label: "Super administrator" },
-  { code: "SystemAdministrator", label: "System administrator" },
-  { code: "CentralHR", label: "Central HR" },
-  { code: "BoardHR", label: "Board HR" },
-  { code: "ArchdeaconryAdmin", label: "Archdeaconry administrator" },
-  { code: "ParishAdmin", label: "Parish administrator" },
-  { code: "InstitutionAdmin", label: "Institution administrator" },
-  { code: "FinanceOfficer", label: "Finance officer" },
-  { code: "RegistryOfficer", label: "Registry officer" },
-  { code: "SafeguardingOfficer", label: "Safeguarding officer" },
-  { code: "ICTAdministrator", label: "ICT administrator" },
-  { code: "Auditor", label: "Auditor" },
-  { code: "Employee", label: "Employee" },
-  { code: "ReadOnly", label: "Read only" },
+  { code: "SUPER_ADMIN", label: "Super administrator" },
+  { code: "SYSTEM_ADMIN", label: "System administrator" },
+  { code: "SECRETARIAT_USER", label: "Secretariat / Main Office user" },
+  { code: "MISSION_BOARD_USER", label: "Mission Board user" },
+  { code: "EDUCATION_BOARD_USER", label: "Education Board user" },
+  { code: "HEALTH_BOARD_USER", label: "Health Board user" },
+  { code: "LAND_FINANCE_BOARD_USER", label: "Land & Finance Board user" },
+  { code: "PLANNING_DEVELOPMENT_BOARD_USER", label: "Planning & Development Board user" },
+  { code: "ICT_BOARD_USER", label: "ICT Board user" },
 ];
 
 export default function UserRegistrationPanel({ online }: { online: boolean }) {
@@ -29,7 +24,7 @@ export default function UserRegistrationPanel({ online }: { online: boolean }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  if (!roles.includes("SuperAdministrator")) return null;
+  if (!roles.includes("SUPER_ADMIN")) return null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,7 +71,7 @@ export default function UserRegistrationPanel({ online }: { online: boolean }) {
         <div>
           <p className="eyebrow">ACCOUNT PROVISIONING</p>
           <h2 id="register-user-title">Register a user</h2>
-          <p className="muted">Send an email invitation and grant the user an initial system role.</p>
+          <p className="muted">Invite a named account holder. The selected business role receives its matching department scope automatically.</p>
         </div>
       </div>
       {error && <div className="notice notice-error registration-message" role="alert">{error}</div>}
@@ -97,7 +92,7 @@ export default function UserRegistrationPanel({ online }: { online: boolean }) {
           </label>
         </div>
         <div className="registration-footer">
-          <p className="muted">Assign an organizational scope after registration for roles that need scoped access.</p>
+          <p className="muted">Each department role is limited to one active designated account and its matching organizational scope.</p>
           <button className="button button-primary" type="submit" disabled={!online || submitting || !supabase}>
             <Icon name="plus" size={15} />{submitting ? "Sending invitation…" : "Send invitation"}
           </button>

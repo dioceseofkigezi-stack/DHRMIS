@@ -21,9 +21,18 @@ interface Metric {
 
 const metricPages: Record<string, string> = {
   employees: "/people",
+  clergy: "/clergy",
+  catechists: "/catechists",
   vacancies: "/recruitment",
   applicants: "/applicants",
+  assignments: "/assignments",
+  employee_transfers: "/transfers",
   leave_records: "/leave",
+  training_records: "/training",
+  qualifications: "/qualifications",
+  performance_appraisals: "/performance",
+  retirements: "/retirement",
+  early_retirement_applications: "/early-retirement",
   institutions: "/organization/institutions",
   professional_licences: "/licences",
   security_event: "/security",
@@ -36,11 +45,18 @@ function metricsForWorkspace(workspace: PersonnelWorkspace, roles: string[]) {
   const metrics: Omit<Metric, "value">[] = [];
   const managesPersonnel = canManageWorkspacePersonnel(workspace, roles);
 
-  if (managesPersonnel || (workspace.kind === "board" && roles.includes("InstitutionAdmin"))) {
+  if (managesPersonnel) {
     metrics.push({ label: "Employees", table: "employees", hint: "In this personnel scope" });
+    metrics.push({ label: "Active assignments", table: "assignments", hint: "Effective in this personnel scope" });
     metrics.push({ label: "Open vacancies", table: "vacancies", hint: "In this personnel scope" });
     metrics.push({ label: "Applicants", table: "applicants", hint: "For your authorized vacancies" });
     metrics.push({ label: "Leave records", table: "leave_records", hint: "For employees in this scope" });
+    metrics.push({ label: "Training records", table: "training_records", hint: "For employees in this scope" });
+    metrics.push({ label: "Qualifications", table: "qualifications", hint: "For employees in this scope" });
+    metrics.push({ label: "Performance appraisals", table: "performance_appraisals", hint: "For employees in this scope" });
+    metrics.push({ label: "Transfer history", table: "employee_transfers", hint: "Moves to and from this personnel scope" });
+    metrics.push({ label: "Retirement cases", table: "retirements", hint: "For employees in this scope" });
+    metrics.push({ label: "Early retirement applications", table: "early_retirement_applications", hint: "For employees in this scope" });
   }
 
   if (["EDUCATION", "HEALTH"].includes(workspace.code) && canAccessModule("/organization/institutions", roles)) {
@@ -49,10 +65,9 @@ function metricsForWorkspace(workspace: PersonnelWorkspace, roles: string[]) {
   if (["HEALTH", "ICT"].includes(workspace.code) && canAccessModule("/licences", roles)) {
     metrics.push({ label: workspace.code === "HEALTH" ? "Professional licences" : "Technical certifications", table: "professional_licences", hint: "Within this personnel scope" });
   }
-  if (workspace.code === "ICT" && roles.includes("ICTAdministrator")) {
-    metrics.push({ label: "Unacknowledged security events", table: "security_event", hint: "Visible to your security role" });
-  }
-  if (workspace.kind === "secretariat" && !managesPersonnel) {
+  if (workspace.kind === "secretariat") {
+    metrics.push({ label: "Priests", table: "clergy", hint: "In Secretariat personnel" });
+    metrics.push({ label: "Catechists", table: "catechists", hint: "In Secretariat personnel" });
     metrics.push({ label: "Archdeaconries", table: "archdeaconries", hint: "In your ecclesiastical scope" });
     metrics.push({ label: "Parishes", table: "parishes", hint: "In your ecclesiastical scope" });
     metrics.push({ label: "Local churches", table: "local_churches", hint: "In your ecclesiastical scope" });
@@ -89,7 +104,7 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
   useEffect(() => {
     let active = true;
     async function loadMetrics() {
-      if (!workspace || !hasWorkspaceAccess) {
+      if (!workspace || !hasWorkspaceAccess || !activeDomain) {
         setMetrics([]);
         setError("");
         return;
@@ -101,15 +116,17 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
       }
 
       const results = await Promise.all(metricDefinitions.map(async (metric) => {
-        if (activeDomain && canManageWorkspacePersonnel(workspace, roles) && metric.table !== "security_event") {
-          const { data, error: queryError } = await supabase!.rpc("count_personnel_domain_records", {
-            target_domain_id: activeDomain.id,
-            resource_code: metric.table,
-          });
-          return { ...metric, value: queryError ? null : Number(data ?? 0), queryError };
+        if (["archdeaconries", "parishes", "local_churches"].includes(metric.table)) {
+          const { count, error: queryError } = await supabase!.from(metric.table).select("id", { count: "exact", head: true });
+          return { ...metric, value: queryError ? null : count ?? 0, queryError };
         }
-        const { count, error: queryError } = await supabase!.from(metric.table).select("id", { count: "exact", head: true });
-        return { ...metric, value: queryError ? null : count ?? 0, queryError };
+        const { data, error: queryError } = await supabase!.rpc("count_personnel_domain_records", {
+          target_domain_id: activeDomain.id,
+          resource_code: metric.table,
+        });
+        const parsedCount = Number(data);
+        const count = Number.isFinite(parsedCount) ? parsedCount : null;
+        return { ...metric, value: queryError ? null : count, queryError };
       }));
       if (!active) return;
       setMetrics(results.map(({ queryError: _queryError, ...metric }) => metric));
@@ -117,7 +134,7 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
     }
     void loadMetrics();
     return () => { active = false; };
-  }, [workspace, activeDomain?.id, hasWorkspaceAccess, metricDefinitions, roles]);
+  }, [workspace, activeDomain, hasWorkspaceAccess, metricDefinitions]);
 
   if (workspace && !hasWorkspaceAccess) {
     return <div className="page-content"><div className="empty-state"><div className="empty-mark">Restricted</div><h2>Workspace access required</h2><p>Your account does not have an active scope for {workspace.name}.</p></div></div>;
@@ -125,7 +142,7 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
 
   if (!workspace) {
     const quickLinks = ["/people", "/leave", "/recruitment", "/applicants", "/assignments", "/documents"];
-    const scopedPersonnelRoles = ["CentralHR", "BoardHR", "ArchdeaconryAdmin", "ParishAdmin", "InstitutionAdmin", "FinanceOfficer"];
+    const scopedPersonnelRoles = ["SECRETARIAT_USER", "MISSION_BOARD_USER", "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER", "LAND_FINANCE_BOARD_USER", "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER"];
     const missingPersonnelScope = workspaceDomainCodes.length === 0 && roles.some((role) => scopedPersonnelRoles.includes(role));
     const visibleQuickLinks = missingPersonnelScope ? [] : quickLinks.filter((path) => canAccessModule(path, roles));
     return (

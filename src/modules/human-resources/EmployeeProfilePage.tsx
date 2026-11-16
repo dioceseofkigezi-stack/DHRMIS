@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { auditService } from "@/core/audit/service";
 import { canAccessModule } from "@/app/modules";
 import { useAuth } from "@/modules/core/auth/context";
+import { canAccessWorkspace, getWorkspaceFromPath } from "@/core/organizational-scope/workspaces";
 
 interface Employee {
   id: string;
@@ -88,23 +89,29 @@ function DataSections({ sections, rows }: { sections: DataSection[]; rows: Recor
 }
 
 export default function EmployeeProfilePage({ employeeId }: { employeeId: string }) {
-  const { roles, session } = useAuth();
+  const location = useLocation();
+  const { roles, session, workspaceDomainCodes } = useAuth();
+  const activeWorkspace = getWorkspaceFromPath(location.pathname, location.search);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [tab, setTab] = useState("overview");
   const [rows, setRows] = useState<Record<string, DataRow[]>>({});
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
   const [error, setError] = useState("");
-  const canViewEmployee = canAccessModule("/people", roles) || roles.includes("Employee");
+  const canViewEmployee = (!activeWorkspace || canAccessWorkspace(activeWorkspace, roles, workspaceDomainCodes)) && canAccessModule("/people", roles);
   const visibleTabs = useMemo(() => tabs.filter((candidate) => !candidate.accessPath || canAccessModule(candidate.accessPath, roles)), [roles]);
 
   useEffect(() => {
     let active = true;
     async function loadEmployee() {
       if (!supabase || !canViewEmployee) {
+        setEmployee(null);
+        setRows({});
         setLoading(false);
         return;
       }
+      setEmployee(null);
+      setRows({});
       setLoading(true);
       setError("");
       const { data, error: queryError } = await supabase.from("employees").select(employeeColumns).eq("id", employeeId).maybeSingle();
@@ -119,7 +126,7 @@ export default function EmployeeProfilePage({ employeeId }: { employeeId: string
     }
     void loadEmployee();
     return () => { active = false; };
-  }, [employeeId, canViewEmployee]);
+  }, [employeeId, canViewEmployee, location.search]);
 
   useEffect(() => {
     let active = true;

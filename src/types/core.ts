@@ -5,7 +5,7 @@
 
 // ─── Core Identity Types ─────────────────────────────────────────────────────
 
-export type Gender = "Male" | "Female" | "Other" | "PreferNotToSay";
+export type Gender = "Male" | "Female";
 export type LifeStatus = "Alive" | "Deceased" | "UnknownNotConfirmed";
 export type EmploymentStatus =
   | "Active"
@@ -106,20 +106,15 @@ export type BoardType =
 // ─── Role and Permission Types ────────────────────────────────────────────────
 
 export type RoleLevel =
-  | "SuperAdministrator"
-  | "SystemAdministrator"
-  | "CentralHR"
-  | "BoardHR"
-  | "ArchdeaconryAdmin"
-  | "ParishAdmin"
-  | "InstitutionAdmin"
-  | "FinanceOfficer"
-  | "RegistryOfficer"
-  | "SafeguardingOfficer"
-  | "ICTAdministrator"
-  | "Auditor"
-  | "Employee"
-  | "ReadOnly";
+  | "SUPER_ADMIN"
+  | "SYSTEM_ADMIN"
+  | "SECRETARIAT_USER"
+  | "MISSION_BOARD_USER"
+  | "EDUCATION_BOARD_USER"
+  | "HEALTH_BOARD_USER"
+  | "LAND_FINANCE_BOARD_USER"
+  | "PLANNING_DEVELOPMENT_BOARD_USER"
+  | "ICT_BOARD_USER";
 
 export type PermissionCategory =
   | "employee:read"

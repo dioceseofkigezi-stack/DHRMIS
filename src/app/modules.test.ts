@@ -19,14 +19,13 @@ describe("system module registry", () => {
     expect(getModule("/security")?.readOnly).toBe(true);
   });
 
-  it("allows employee self-service only on leave, early retirement, and family records", () => {
-    expect(canAccessModule("/leave", ["Employee"])).toBe(true);
-    expect(canWriteModule("/leave", ["Employee"])).toBe(true);
-    expect(canAccessModule("/early-retirement", ["Employee"])).toBe(true);
-    expect(canWriteModule("/early-retirement", ["Employee"])).toBe(true);
-    expect(canAccessModule("/family", ["Employee"])).toBe(true);
-    expect(canWriteModule("/family", ["Employee"])).toBe(false);
-    expect(canAccessModule("/payroll", ["Employee"])).toBe(false);
+  it("gives each designated department role the scoped personnel workflow", () => {
+    expect(canAccessModule("/leave", ["EDUCATION_BOARD_USER"])).toBe(true);
+    expect(canWriteModule("/leave", ["EDUCATION_BOARD_USER"])).toBe(true);
+    expect(canAccessModule("/early-retirement", ["EDUCATION_BOARD_USER"])).toBe(true);
+    expect(canWriteModule("/early-retirement", ["EDUCATION_BOARD_USER"])).toBe(true);
+    expect(canAccessModule("/payroll", ["EDUCATION_BOARD_USER"])).toBe(false);
+    expect(canAccessModule("/payroll", ["LAND_FINANCE_BOARD_USER"])).toBe(true);
   });
 
   it("lets administrators link provisioned roles to an employee record", () => {
@@ -36,19 +35,20 @@ describe("system module registry", () => {
   });
 
   it("restricts exports to roles permitted for each data category", () => {
-    expect(canExportModule("/people", ["CentralHR"])).toBe(true);
-    expect(canExportModule("/people", ["Employee"])).toBe(false);
-    expect(canExportModule("/payroll", ["FinanceOfficer"])).toBe(true);
-    expect(canExportModule("/payroll", ["BoardHR"])).toBe(false);
-    expect(canExportModule("/safeguarding", ["SafeguardingOfficer"])).toBe(false);
+    expect(canExportModule("/people", ["SECRETARIAT_USER"])).toBe(true);
+    expect(canExportModule("/people", ["SYSTEM_ADMIN"])).toBe(false);
+    expect(canExportModule("/payroll", ["LAND_FINANCE_BOARD_USER"])).toBe(true);
+    expect(canExportModule("/payroll", ["MISSION_BOARD_USER"])).toBe(false);
+    expect(canExportModule("/safeguarding", ["HEALTH_BOARD_USER"])).toBe(false);
   });
 
   it("does not treat platform or ICT administration as personnel-data permission", () => {
-    expect(canAccessModule("/people", ["SystemAdministrator"])).toBe(false);
-    expect(canAccessModule("/people", ["ICTAdministrator"])).toBe(false);
-    expect(canAccessModule("/people", ["BoardHR"])).toBe(true);
-    expect(canAccessModule("/admin/scopes", ["SystemAdministrator"])).toBe(false);
-    expect(canAccessModule("/security", ["ICTAdministrator"])).toBe(true);
+    expect(canAccessModule("/people", ["SYSTEM_ADMIN"])).toBe(false);
+    expect(canAccessModule("/people", ["ICT_BOARD_USER"])).toBe(true);
+    expect(canAccessModule("/people", ["EDUCATION_BOARD_USER"])).toBe(true);
+    expect(canAccessModule("/admin/scopes", ["SYSTEM_ADMIN"])).toBe(false);
+    expect(canAccessModule("/admin/sessions", ["SYSTEM_ADMIN"])).toBe(true);
+    expect(canAccessModule("/security", ["ICT_BOARD_USER"])).toBe(false);
   });
 
   it("keeps all data-backed module routes connected to existing tables", () => {

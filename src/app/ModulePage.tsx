@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "@/core/config";
-import { canAccessModule, canDeleteModule, canExportModule, canWriteModule, getModule, moduleWriteRoles, type FieldConfig } from "@/app/modules";
+import { canAccessModule, canDeleteModule, canExportModule, canWriteModule, getModule, type FieldConfig } from "@/app/modules";
 import { getPathIcon, Icon } from "@/components/ui/Icon";
 import DataTable from "@/components/tables/DataTable";
 import ConfirmDialog from "@/components/feedback/ConfirmDialog";
@@ -10,7 +10,7 @@ import { displayValue } from "@/core/security/displayValue";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useAuth } from "@/modules/core/auth/context";
-import { getWorkspaceDomain, getWorkspaceFromPath, workspacePath } from "@/core/organizational-scope/workspaces";
+import { canAccessWorkspace, getWorkspaceDomain, getWorkspaceFromPath, workspacePath } from "@/core/organizational-scope/workspaces";
 import UserRegistrationPanel from "@/modules/admin/UserRegistrationPanel";
 
 type Row = Record<string, unknown> & { id: string };
@@ -44,11 +44,12 @@ function getInitialValues(fields: FieldConfig[], defaults: FormValues = {}) {
   return Object.fromEntries(fields.map((field) => [field.name, defaults[field.name] ?? (field.kind === "checkbox" ? false : "")]));
 }
 
-function EditField({ field, value, onChange, employees }: {
+function EditField({ field, value, onChange, employees, employeesLoading }: {
   field: FieldConfig;
   value: unknown;
   onChange: (value: unknown) => void;
   employees: Array<{ id: string; label: string }>;
+  employeesLoading: boolean;
 }) {
   const common = {
     id: `field-${field.name}`,
@@ -64,7 +65,7 @@ function EditField({ field, value, onChange, employees }: {
       {field.label}{field.required && <span aria-hidden="true" className="required-indicator"> *</span>}
       {field.kind === "textarea" || field.kind === "json" ? <textarea {...common} value={typeof value === "string" ? value : JSON.stringify(value ?? [], null, 2)} rows={3} placeholder={field.placeholder} /> :
         field.kind === "select" ? <select {...common} value={String(value ?? "")}><option value="">Select…</option>{field.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select> :
-          field.kind === "employee" ? employees.length ? <select {...common} value={String(value ?? "")}><option value="">Select an employee…</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}</select> : <input {...common} value={String(value ?? "")} placeholder="Employee record ID" /> :
+          field.kind === "employee" ? employeesLoading ? <select {...common} value="" disabled><option value="">Loading employees…</option></select> : employees.length ? <select {...common} value={String(value ?? "")}><option value="">Select an employee…</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}</select> : <input {...common} value={String(value ?? "")} placeholder="Employee record ID" /> :
             field.kind === "checkbox" ? <span className="checkbox-control"><input {...common} type="checkbox" checked={Boolean(value)} /> Yes</span> :
               <input {...common} type={field.kind ?? "text"} value={field.kind === "date" && value ? String(value).slice(0, 10) : String(value ?? "")} placeholder={field.placeholder} />}
     </label>
@@ -78,13 +79,17 @@ export default function ModulePage() {
   const online = useNetworkStatus();
   const config = getModule(location.pathname);
   const activeWorkspace = getWorkspaceFromPath(location.pathname, location.search);
-  const activeDomain = activeWorkspace && workspaceDomainCodes.includes(activeWorkspace.code)
-    ? getWorkspaceDomain(activeWorkspace, personnelDomains)
+  const hasWorkspaceAccess = !activeWorkspace || canAccessWorkspace(activeWorkspace, roles, workspaceDomainCodes);
+  const activeDomain = activeWorkspace
+    ? hasWorkspaceAccess ? getWorkspaceDomain(activeWorkspace, personnelDomains) : undefined
     : workspaceDomainCodes.length === 1
       ? personnelDomains.find((domain) => domain.code === workspaceDomainCodes[0])
       : undefined;
+  const hasAccess = Boolean(config && canAccessModule(config.path, roles) && hasWorkspaceAccess);
   const [rows, setRows] = useState<Row[]>([]);
   const [employees, setEmployees] = useState<Array<{ id: string; label: string }>>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const employeeDirectoryRequest = useRef<Promise<Array<{ id: string; label: string }>> | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [error, setError] = useState("");
@@ -125,7 +130,7 @@ export default function ModulePage() {
   }, [config]);
 
   const loadRows = useCallback(async () => {
-    if (!config?.table || !supabase || !canAccessModule(config.path, roles)) {
+    if (!config?.table || !supabase || !hasAccess) {
       setLoading(false);
       setRows([]);
       setCount(0);
@@ -165,53 +170,52 @@ export default function ModulePage() {
     } finally {
       setLoading(false);
     }
-  }, [config, roles, session?.user.id, debouncedSearch, searchColumn, page, sortKey, sortAscending, location.search, activeDomain?.id]);
+  }, [config, hasAccess, session?.user.id, debouncedSearch, searchColumn, page, sortKey, sortAscending, location.search, activeDomain?.id]);
 
   useEffect(() => { void loadRows(); }, [loadRows]);
-
-  useEffect(() => {
-    let active = true;
-    async function loadEmployees() {
-      if (!supabase || !config?.fields?.some((field) => field.kind === "employee") || !canAccessModule(config.path, roles)) return;
-      const { data, error: queryError } = await supabase.rpc("get_employee_directory");
-      if (!active) return;
-      if (queryError) {
-        setError("Unable to load employee choices. Check your access and try again.");
-        return;
-      }
-      const directoryData: unknown = data;
-      if (!Array.isArray(directoryData) || !directoryData.every(isEmployeeDirectoryEntry)) {
-        setError("The employee directory returned an unexpected response.");
-        return;
-      }
-      setEmployees(directoryData.map((employee) => ({
-        id: employee.id,
-        label: `${employee.employee_number} · ${employee.first_name} ${employee.last_name}`,
-      })));
-    }
-    void loadEmployees();
-    return () => { active = false; };
-  }, [config, roles]);
 
   if (!config) return <div className="page-content"><div className="empty-state"><h2>Page not found</h2><p>This page is not part of the system.</p></div></div>;
 
   const pageConfig = config;
-  const hasAccess = canAccessModule(pageConfig.path, roles);
-  const selfServiceEmployee = roles.includes("Employee") &&
-    !roles.some((role) => role !== "Employee" && moduleWriteRoles(pageConfig.path).includes(role)) &&
-    (pageConfig.path === "/leave" || pageConfig.path === "/early-retirement");
   const canEdit = Boolean(pageConfig.fields?.length && !pageConfig.readOnly && canWriteModule(pageConfig.path, roles));
-  const canEditExisting = canEdit && !selfServiceEmployee && pageConfig.table !== "employee_transfers";
+  const canEditExisting = canEdit && pageConfig.table !== "employee_transfers";
   const canDelete = canEdit && Boolean(pageConfig.allowDelete) && canDeleteModule(pageConfig.path, roles);
   const canExport = canExportModule(pageConfig.path, roles);
   const columns = pageConfig.columns ?? [];
-  const selfServiceFields: Record<string, string[]> = {
-    "/leave": ["employee_id", "leave_type", "period", "start_date", "end_date", "reason"],
-    "/early-retirement": ["employee_id", "application_date", "reason", "eligible_years_left", "requested_effective_date"],
-  };
-  const fields = (pageConfig.fields ?? []).filter((field) => !selfServiceEmployee || selfServiceFields[pageConfig.path]?.includes(field.name));
+  const fields = pageConfig.fields ?? [];
+
+  async function loadEmployeeDirectory() {
+    if (!supabase || !hasAccess || !canEdit || !fields.some((field) => field.kind === "employee")) return;
+    if (!employeeDirectoryRequest.current) {
+      setEmployeesLoading(true);
+      employeeDirectoryRequest.current = (async () => {
+        const { data, error: queryError } = await supabase.rpc("get_employee_directory");
+        if (queryError) throw queryError;
+        const directoryData: unknown = data;
+        if (!Array.isArray(directoryData) || !directoryData.every(isEmployeeDirectoryEntry)) {
+          throw new Error("Employee directory returned an unexpected response.");
+        }
+        return directoryData.map((employee) => ({
+          id: employee.id,
+          label: `${employee.employee_number} · ${employee.first_name} ${employee.last_name}`,
+        }));
+      })();
+    }
+
+    const request = employeeDirectoryRequest.current;
+    if (!request) return;
+    try {
+      setEmployees(await request);
+    } catch {
+      employeeDirectoryRequest.current = null;
+      setError("Unable to load employee choices. Check your access and try again.");
+    } finally {
+      setEmployeesLoading(false);
+    }
+  }
 
   function openCreate() {
+    void loadEmployeeDirectory();
     setSelected(null);
     setValues(getInitialValues(fields, pageConfig.defaultValues));
     setModalOpen(true);
@@ -219,6 +223,7 @@ export default function ModulePage() {
 
   function openEdit(row: Row) {
     if (!canEditExisting) return;
+    void loadEmployeeDirectory();
     setSelected(row);
     setValues(getInitialValues(fields, row));
     setModalOpen(true);
@@ -251,8 +256,6 @@ export default function ModulePage() {
           payload[field.name] = value;
         }
       }
-      if (selfServiceEmployee) payload.status = pageConfig.path === "/leave" ? "Requested" : "Submitted";
-
       if (["assignments", "employee_roles", "vacancies", "departments", "institutions", "grades", "positions"].includes(pageConfig.table) && activeDomain) {
         payload.personnel_domain_id = activeDomain.id;
         payload.board_id = activeDomain.boardId;
@@ -386,7 +389,7 @@ export default function ModulePage() {
       {hasAccess && <>
         <header className="page-heading">
           <div><p className="eyebrow">{pageConfig.group.toUpperCase()}</p><h1><Icon name={getPathIcon(pageConfig.path)} size={23} />{pageConfig.label}</h1><p className="muted">{pageConfig.description}</p></div>
-          {canEdit && <button className="button button-primary" onClick={openCreate} disabled={!online}><Icon name="plus" size={15} />{pageConfig.path === "/admin/users" ? "Assign a role" : "New record"}</button>}
+          {canEdit && (!pageConfig.singleRecord || count === 0) && <button className="button button-primary" onClick={openCreate} disabled={!online}><Icon name="plus" size={15} />{pageConfig.path === "/admin/users" ? "Assign a role" : pageConfig.singleRecord ? "Set up Diocese profile" : "New record"}</button>}
         </header>
         {pageConfig.path === "/admin/users" && <UserRegistrationPanel online={online} />}
         {!supabase && <div className="notice notice-warning">The Supabase data service is not configured. Contact your administrator.</div>}
@@ -414,8 +417,8 @@ export default function ModulePage() {
         {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
           <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <div className="modal-heading"><div><p className="eyebrow">{pageConfig.label}</p><h2 id="modal-title">{selected ? "Edit record" : "New record"}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)} aria-label="Close dialog" disabled={saving}><Icon name="close" size={18} /></button></div>
-            <form onSubmit={(event) => void handleSave(event)}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))} />)}</div>
-              <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || !online}>{saving ? "Saving…" : <><Icon name={selected ? "check" : "plus"} size={14} />{selected ? "Save changes" : "Create record"}</>}</button></div>
+            <form onSubmit={(event) => void handleSave(event)}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} employeesLoading={employeesLoading} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))} />)}</div>
+              <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || employeesLoading || !online}>{saving ? "Saving…" : <><Icon name={selected ? "check" : "plus"} size={14} />{selected ? "Save changes" : "Create record"}</>}</button></div>
             </form>
           </section>
         </div>}

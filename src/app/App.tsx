@@ -9,15 +9,29 @@ import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useAuth } from "@/modules/core/auth/context";
 import { canAccessWorkspace, getWorkspaceFromPath, getWorkspaceNavigation, personnelWorkspaces, workspacePath } from "@/core/organizational-scope/workspaces";
+import MfaRequiredPage from "@/modules/auth/MfaRequiredPage";
 
 const DashboardPage = lazy(() => import("@/app/DashboardPage"));
 const ModulePage = lazy(() => import("@/app/ModulePage"));
 const EmployeeProfilePage = lazy(() => import("@/modules/human-resources/EmployeeProfilePage"));
 const DocumentManagerPage = lazy(() => import("@/modules/archive/DocumentManagerPage"));
 const DeathRecordsPage = lazy(() => import("@/modules/death/DeathRecordsPage"));
+const SessionManagementPage = lazy(() => import("@/modules/admin/SessionManagementPage"));
 
 function LoadingPage() {
   return <div className="screen-state"><span className="loading-spinner" /> Loading workspace…</div>;
+}
+
+function sessionAal(accessToken: string) {
+  try {
+    const payload = accessToken.split(".")[1];
+    if (!payload) return "";
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const claims = JSON.parse(atob(base64)) as Record<string, unknown>;
+    return typeof claims.aal === "string" ? claims.aal : "";
+  } catch {
+    return "";
+  }
 }
 
 export default function App() {
@@ -32,16 +46,20 @@ export default function App() {
   if (loading) return <LoadingPage />;
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (roleLoading) return <LoadingPage />;
+  if (roles.length > 0 && sessionAal(session.access_token) !== "aal2") return <MfaRequiredPage />;
   if (location.pathname === "/") return <Navigate to="/dashboard" replace />;
 
   const activePage = modulePages.find((page) => page.path === location.pathname);
   const availableWorkspaces = personnelWorkspaces.filter((workspace) => canAccessWorkspace(workspace, roles, workspaceDomainCodes));
   const routeWorkspace = getWorkspaceFromPath(location.pathname, location.search);
+  const routeWorkspaceAllowed = !routeWorkspace || availableWorkspaces.some((workspace) => workspace.code === routeWorkspace.code);
   const selectedWorkspace = location.pathname === "/dashboard"
     ? undefined
-    : routeWorkspace ?? (availableWorkspaces.length === 1 ? availableWorkspaces[0] : undefined);
+    : routeWorkspace
+      ? routeWorkspaceAllowed ? routeWorkspace : undefined
+      : availableWorkspaces.length === 1 ? availableWorkspaces[0] : undefined;
   const workspaceNav = selectedWorkspace ? getWorkspaceNavigation(selectedWorkspace, roles) : [];
-  const scopeRequiredRoles = ["CentralHR", "BoardHR", "ArchdeaconryAdmin", "ParishAdmin", "InstitutionAdmin", "FinanceOfficer"];
+  const scopeRequiredRoles = ["SECRETARIAT_USER", "MISSION_BOARD_USER", "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER", "LAND_FINANCE_BOARD_USER", "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER"];
   const missingPersonnelScope = workspaceDomainCodes.length === 0 && roles.some((role) => scopeRequiredRoles.includes(role));
   const visiblePages = modulePages.filter((page) => canAccessModule(page.path, roles) && (!missingPersonnelScope || ["/audit", "/security", "/settings"].includes(page.path)));
   const name = session.user.user_metadata?.full_name || session.user.email || "Account";
@@ -130,7 +148,7 @@ export default function App() {
         {roleError && <div className="global-error" role="alert">Your access could not be loaded. Refresh the page or contact your system administrator.</div>}
         <Suspense fallback={<LoadingPage />}>
           <AppErrorBoundary title="This module could not be loaded">
-            {location.pathname === "/dashboard" ? <DashboardPage workspaces={availableWorkspaces} /> : personnelWorkspaces.some((workspace) => location.pathname === `/${workspace.slug}`) ? <DashboardPage workspace={routeWorkspace} workspaces={availableWorkspaces} /> : employeeProfileMatch ? <EmployeeProfilePage employeeId={decodeURIComponent(employeeProfileMatch[1])} /> : location.pathname === "/documents" ? <DocumentManagerPage /> : location.pathname === "/death" ? <DeathRecordsPage /> : <ModulePage />}
+            {!routeWorkspaceAllowed ? <div className="page-content"><div className="empty-state"><div className="empty-mark">Restricted</div><h2>Workspace access required</h2><p>Your account does not have an active scope for this department.</p><Link className="button button-secondary" to="/dashboard">Open your workspaces</Link></div></div> : location.pathname === "/dashboard" ? <DashboardPage workspaces={availableWorkspaces} /> : personnelWorkspaces.some((workspace) => location.pathname === `/${workspace.slug}`) ? <DashboardPage workspace={routeWorkspace} workspaces={availableWorkspaces} /> : employeeProfileMatch ? <EmployeeProfilePage employeeId={decodeURIComponent(employeeProfileMatch[1])} /> : location.pathname === "/documents" ? <DocumentManagerPage /> : location.pathname === "/death" ? <DeathRecordsPage /> : location.pathname === "/admin/sessions" ? <SessionManagementPage /> : <ModulePage />}
           </AppErrorBoundary>
         </Suspense>
       </main>

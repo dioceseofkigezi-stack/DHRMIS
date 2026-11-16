@@ -3,15 +3,16 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Icon } from "@/components/ui/Icon";
 import { searchAuthorizedRecords, type SearchResult } from "@/core/search/search";
 import { useAuth } from "@/modules/core/auth/context";
-import { getWorkspaceDomain, getWorkspaceFromPath, workspacePath } from "@/core/organizational-scope/workspaces";
+import { canAccessWorkspace, getWorkspaceDomain, getWorkspaceFromPath, workspacePath } from "@/core/organizational-scope/workspaces";
 
 export default function GlobalSearch() {
   const { roles, personnelDomains, workspaceDomainCodes } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const workspace = getWorkspaceFromPath(location.pathname, location.search);
-  const activeDomain = workspace && workspaceDomainCodes.includes(workspace.code)
-    ? getWorkspaceDomain(workspace, personnelDomains)
+  const hasWorkspaceAccess = !workspace || canAccessWorkspace(workspace, roles, workspaceDomainCodes);
+  const activeDomain = workspace
+    ? hasWorkspaceAccess ? getWorkspaceDomain(workspace, personnelDomains) : undefined
     : workspaceDomainCodes.length === 1
       ? personnelDomains.find((domain) => domain.code === workspaceDomainCodes[0])
       : undefined;
@@ -21,15 +22,17 @@ export default function GlobalSearch() {
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
+  const visibleResults = hasWorkspaceAccess ? results : [];
 
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) {
+    if (term.length < 2 || !hasWorkspaceAccess) {
       setResults([]);
       setError("");
       setLoading(false);
       return;
     }
+    setResults([]);
     let active = true;
     const timer = window.setTimeout(() => {
       setLoading(true);
@@ -49,7 +52,7 @@ export default function GlobalSearch() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [query, roles, activeDomain?.id]);
+  }, [query, roles, activeDomain?.id, hasWorkspaceAccess]);
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {
@@ -88,8 +91,8 @@ export default function GlobalSearch() {
       {open && query.trim().length >= 2 && (
         <div className="search-results" id="global-search-results" role="listbox" aria-label="Search results">
           {error ? <p className="search-message" role="status">{error}</p> : null}
-          {!error && !loading && results.length === 0 && <p className="search-message">No matching records found.</p>}
-          {results.map((result) => (
+          {!error && !loading && visibleResults.length === 0 && <p className="search-message">No matching records found.</p>}
+          {visibleResults.map((result) => (
             <button type="button" className="search-result" role="option" aria-selected="false" key={`${result.kind}-${result.id}`} onClick={() => openResult(result)}>
               <span className="search-result-kind">{result.kind}</span>
               <span className="search-result-copy"><strong>{result.title || "Unnamed record"}</strong><small>{result.detail}</small></span>

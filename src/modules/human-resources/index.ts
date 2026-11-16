@@ -35,7 +35,7 @@ export const EMPLOYMENT_STATUSES = [
   "Suspended",
 ];
 
-export const GENDERS = ["Male", "Female", "Other", "PreferNotToSay"];
+export const GENDERS = ["Male", "Female"];
 
 // ─── Module Configuration ────────────────────────────────────────────────────
 

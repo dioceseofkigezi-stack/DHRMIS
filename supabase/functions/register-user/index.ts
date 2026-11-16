@@ -7,10 +7,9 @@ const corsHeaders = {
 };
 
 const roleCodes = new Set([
-  "SuperAdministrator", "SystemAdministrator", "CentralHR", "BoardHR",
-  "ArchdeaconryAdmin", "ParishAdmin", "InstitutionAdmin", "FinanceOfficer",
-  "RegistryOfficer", "SafeguardingOfficer", "ICTAdministrator", "Auditor",
-  "Employee", "ReadOnly",
+  "SUPER_ADMIN", "SYSTEM_ADMIN", "SECRETARIAT_USER", "MISSION_BOARD_USER",
+  "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER", "LAND_FINANCE_BOARD_USER",
+  "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER",
 ]);
 
 function respond(status: number, body: Record<string, unknown>) {
@@ -28,6 +27,30 @@ function isCurrentActiveSuperAdmin(role: Record<string, unknown>) {
   return active === true && suspended !== true &&
     (typeof expiry !== "string" || Date.parse(expiry) > Date.now()) &&
     (typeof lockedUntil !== "string" || Date.parse(lockedUntil) <= Date.now());
+}
+
+function tokenHasAal2(accessToken: string) {
+  try {
+    const payloadPart = accessToken.split(".")[1];
+    if (!payloadPart) return false;
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payloadPart.length / 4) * 4, "=");
+    const claims = JSON.parse(atob(base64)) as Record<string, unknown>;
+    return claims.aal === "aal2";
+  } catch {
+    return false;
+  }
+}
+
+function sessionIdFromToken(accessToken: string) {
+  try {
+    const payloadPart = accessToken.split(".")[1];
+    if (!payloadPart) return "";
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payloadPart.length / 4) * 4, "=");
+    const claims = JSON.parse(atob(base64)) as Record<string, unknown>;
+    return typeof claims.session_id === "string" ? claims.session_id : "";
+  } catch {
+    return "";
+  }
 }
 
 Deno.serve(async (request: Request) => {
@@ -59,10 +82,20 @@ Deno.serve(async (request: Request) => {
     .from("user_roles")
     .select("*")
     .eq("user_id", callerData.user.id)
-    .eq("role_code", "SuperAdministrator");
+    .eq("role_code", "SUPER_ADMIN");
   if (roleError) return respond(500, { message: "Administrator access could not be checked." });
-  if (!(roleRows ?? []).some((row) => isCurrentActiveSuperAdmin(row as Record<string, unknown>))) {
-    return respond(403, { message: "Only an active SuperAdministrator can register users." });
+  const authSessionId = sessionIdFromToken(accessToken);
+  const { data: trackedSession, error: sessionError } = authSessionId
+    ? await adminClient.from("user_sessions").select("id")
+      .eq("user_id", callerData.user.id)
+      .eq("auth_session_id", authSessionId)
+      .eq("isactive", true)
+      .gt("expiresat", new Date().toISOString())
+      .maybeSingle()
+    : { data: null, error: null };
+  if (sessionError) return respond(500, { message: "Administrator session access could not be checked." });
+  if (!tokenHasAal2(accessToken) || !trackedSession || !(roleRows ?? []).some((row) => isCurrentActiveSuperAdmin(row as Record<string, unknown>))) {
+    return respond(403, { message: "Only an active Super Admin session with multi-factor authentication can register users." });
   }
 
   let body: unknown;
@@ -104,9 +137,13 @@ Deno.serve(async (request: Request) => {
     scopes: [],
     isactive: true,
     issuspended: false,
+    ismfaenabled: true,
   });
   if (assignmentError) {
     await adminClient.auth.admin.deleteUser(invitedUser.id);
+    if (assignmentError.code === "23505") {
+      return respond(409, { message: "That designated role already has an active account. Deactivate or replace its current account first." });
+    }
     return respond(500, { message: "The account could not be assigned its initial role. The registration was cancelled." });
   }
 

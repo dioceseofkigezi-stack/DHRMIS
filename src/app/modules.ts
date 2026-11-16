@@ -22,6 +22,7 @@ export interface ModuleConfig {
   defaultValues?: Record<string, unknown>;
   filter?: { column: string; value: string };
   readOnly?: boolean;
+  singleRecord?: boolean;
   allowDelete?: boolean;
   readAuditCategory?: string;
 }
@@ -33,7 +34,7 @@ const employeeFields: FieldConfig[] = [
   { name: "first_name", label: "First name", required: true },
   { name: "middle_name", label: "Middle name" },
   { name: "last_name", label: "Last name", required: true },
-  { name: "gender", label: "Gender", required: true, kind: "select", options: ["Male", "Female", "Other", "PreferNotToSay"] },
+  { name: "gender", label: "Gender", required: true, kind: "select", options: ["Male", "Female"] },
   { name: "email", label: "Email", required: true, kind: "email" },
   { name: "telephone", label: "Telephone" },
   { name: "employee_category", label: "Category", required: true, kind: "select", options: ["Clergy", "Catechist", "LayStaff", "InstitutionalStaff", "Contract", "Volunteer"] },
@@ -145,7 +146,7 @@ export const modulePages: ModuleConfig[] = [
   { path: "/applicants", label: "Applicants", group: "Operations", description: "Review applicant records and recruitment stages for your vacancies.", table: "applicants", titleField: "full_name", columns: ["full_name", "email", "telephone", "highest_qualification", "status"], fields: [
     { name: "vacancy_id", label: "Vacancy ID", required: true },
     { name: "full_name", label: "Full name", required: true }, { name: "email", label: "Email", kind: "email", required: true },
-    { name: "gender", label: "Gender", kind: "select", options: ["Male", "Female", "Other", "PreferNotToSay"], required: true },
+    { name: "gender", label: "Gender", kind: "select", options: ["Male", "Female"], required: true },
     { name: "telephone", label: "Telephone" }, { name: "address", label: "Address", kind: "textarea" },
     { name: "highest_qualification", label: "Highest qualification" }, { name: "work_experience", label: "Work experience", kind: "textarea" },
     { name: "status", label: "Status", kind: "select", options: ["Applied", "Screening", "Interview", "Selected", "Rejected", "Hired", "Withdrawn"] },
@@ -259,7 +260,7 @@ export const modulePages: ModuleConfig[] = [
     { name: "description", label: "Description", kind: "textarea" }, { name: "issensitive", label: "Sensitive department", kind: "checkbox" },
     { name: "isactive", label: "Active", kind: "checkbox" },
   ] },
-  { path: "/organization/dioceses", label: "Dioceses", group: "Administration", description: "Manage diocesan identity and regional records.", table: "dioceses", titleField: "name", columns: ["code", "name", "region", "isactive"], fields: [
+  { path: "/organization/dioceses", label: "Diocese profile", group: "Administration", description: "Manage the identity and regional details for this Diocese.", table: "dioceses", titleField: "name", columns: ["code", "name", "region", "isactive"], singleRecord: true, fields: [
     { name: "name", label: "Name", required: true }, { name: "code", label: "Code", required: true },
     { name: "region", label: "Region" }, { name: "isactive", label: "Active", kind: "checkbox" },
   ] },
@@ -306,14 +307,13 @@ export const modulePages: ModuleConfig[] = [
     { name: "config_section", label: "Section", required: true }, { name: "description", label: "Description", kind: "textarea" },
     { name: "is_valid", label: "Valid", kind: "checkbox" },
   ] },
-  { path: "/admin/users", label: "User registration & access", group: "Administration", description: "Invite users, assign system roles and review account access.", table: "user_roles", titleField: "role_code", columns: ["user_id", "role_code", "employee_id", "isactive", "issuspended", "accountexpiry"], fields: [
+  { path: "/admin/users", label: "User registration & access", group: "Administration", description: "Invite the designated account holders and review account access.", table: "user_roles", titleField: "role_code", columns: ["user_id", "role_code", "employee_id", "isactive", "issuspended", "accountexpiry"], fields: [
     { name: "user_id", label: "Existing account user ID", required: true },
     { name: "employee_id", label: "Linked employee record", kind: "employee" },
     { name: "role_code", label: "Role", kind: "select", required: true, options: [
-      "SuperAdministrator", "SystemAdministrator", "CentralHR", "BoardHR",
-      "ArchdeaconryAdmin", "ParishAdmin", "InstitutionAdmin", "FinanceOfficer",
-      "RegistryOfficer", "SafeguardingOfficer", "ICTAdministrator", "Auditor",
-      "Employee", "ReadOnly",
+      "SUPER_ADMIN", "SYSTEM_ADMIN", "SECRETARIAT_USER", "MISSION_BOARD_USER",
+      "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER", "LAND_FINANCE_BOARD_USER",
+      "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER",
     ] },
     { name: "permissions", label: "Permissions (JSON array)", kind: "json", placeholder: "[]" },
     { name: "scopes", label: "Scopes (JSON array)", kind: "json", placeholder: "[]" },
@@ -321,6 +321,7 @@ export const modulePages: ModuleConfig[] = [
     { name: "issuspended", label: "Suspended", kind: "checkbox" },
     { name: "accountexpiry", label: "Account expiry", kind: "date" },
   ], defaultValues: { isactive: true, issuspended: false, permissions: [], scopes: [] } },
+  { path: "/admin/sessions", label: "Session management", group: "Administration", description: "Review active sign-in sessions and revoke access when needed.", table: "user_sessions", titleField: "device_info", columns: ["user_id", "device_info", "ip_address", "isactive", "expiresat", "lastactivityat"], readOnly: true },
   { path: "/admin/scopes", label: "User scopes", group: "Administration", description: "Assign temporary or permanent organizational scopes to provisioned accounts.", table: "user_scopes", titleField: "scope_name", columns: ["user_id", "scope_type", "scope_name", "expiresAt", "isActive"], fields: [
     { name: "user_id", label: "Account user ID", required: true },
     { name: "scope_id", label: "Organization record ID", required: true },
@@ -336,55 +337,39 @@ export const modulePages: ModuleConfig[] = [
 
 export const moduleGroups = Array.from(new Set(modulePages.map((page) => page.group)));
 
-const hrManagementRoles = ["SuperAdministrator", "CentralHR", "BoardHR", "ArchdeaconryAdmin", "ParishAdmin", "InstitutionAdmin"];
-const hrRoles = [...hrManagementRoles];
-const platformAdminRoles = ["SuperAdministrator", "SystemAdministrator"];
-const readOnlyRoles = ["Auditor"];
+const businessRoles = [
+  "SECRETARIAT_USER", "MISSION_BOARD_USER", "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER",
+  "LAND_FINANCE_BOARD_USER", "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER",
+];
+const allBusinessRoles = ["SUPER_ADMIN", ...businessRoles];
+const platformAdminRoles = ["SUPER_ADMIN", "SYSTEM_ADMIN"];
+const financeRoles = ["SUPER_ADMIN", "LAND_FINANCE_BOARD_USER"];
 
 export function moduleReadRoles(path: string) {
-  if (path === "/admin/users" || path === "/admin/scopes") return ["SuperAdministrator"];
+  if (path === "/admin/users" || path === "/admin/scopes") return ["SUPER_ADMIN"];
+  if (path === "/admin/sessions") return platformAdminRoles;
   if (path === "/settings") return platformAdminRoles;
-  if (path === "/safeguarding") return ["SuperAdministrator", "SafeguardingOfficer"];
-  if (path === "/security") return [...platformAdminRoles, "ICTAdministrator", "SafeguardingOfficer", ...readOnlyRoles];
-  if (path === "/audit") return [...platformAdminRoles, ...readOnlyRoles];
-  if (path === "/family") return ["SuperAdministrator", "CentralHR", "BoardHR", "Employee"];
-  if (path === "/leave" || path === "/early-retirement") {
-    return [...hrManagementRoles, "FinanceOfficer", "Employee"];
+  if (path === "/security") return platformAdminRoles;
+  if (path === "/audit") return platformAdminRoles;
+  if (path === "/safeguarding") return ["SUPER_ADMIN"];
+  if (path === "/payroll" || path === "/benefits" || path.startsWith("/pension")) return financeRoles;
+  if (path.startsWith("/organization/archdeaconries") || path.startsWith("/organization/parishes") || path.startsWith("/organization/local-churches")) {
+    return ["SUPER_ADMIN", "SECRETARIAT_USER"];
   }
-  if (path === "/discipline" || path === "/death") return ["SuperAdministrator", "CentralHR", "BoardHR"];
-  if (path === "/payroll" || path === "/benefits" || path.startsWith("/pension") || path.startsWith("/retirement") || path === "/early-retirement") {
-    return ["SuperAdministrator", "CentralHR", "FinanceOfficer"];
-  }
-  if (path === "/recruitment") return ["SuperAdministrator", "CentralHR", "BoardHR"];
-  if (path === "/applicants" || path === "/recruitment/applications") return ["SuperAdministrator", "CentralHR", "BoardHR"];
-  if (path.startsWith("/organization")) return [...hrRoles, ...readOnlyRoles];
-  if (path === "/documents") return ["SuperAdministrator", "CentralHR", "BoardHR", "RegistryOfficer"];
-  if (path === "/delegations") return hrRoles;
-  return [...hrRoles, ...readOnlyRoles];
+  if (path.startsWith("/organization")) return allBusinessRoles;
+  return allBusinessRoles;
 }
 
 export function moduleWriteRoles(path: string) {
-  if (path === "/admin/users" || path === "/admin/scopes") return ["SuperAdministrator"];
+  if (path === "/admin/users" || path === "/admin/scopes") return ["SUPER_ADMIN"];
+  if (path === "/admin/sessions") return platformAdminRoles;
   if (path === "/settings") return platformAdminRoles;
-  if (path === "/safeguarding") return ["SuperAdministrator", "SafeguardingOfficer"];
-  if (path === "/family") return ["SuperAdministrator", "CentralHR", "BoardHR"];
-  if (path === "/leave" || path === "/early-retirement") {
-    return [...hrManagementRoles, "FinanceOfficer", "Employee"];
+  if (path === "/safeguarding") return ["SUPER_ADMIN"];
+  if (path === "/payroll" || path === "/benefits" || path.startsWith("/pension")) return financeRoles;
+  if (path.startsWith("/organization/archdeaconries") || path.startsWith("/organization/parishes") || path.startsWith("/organization/local-churches")) {
+    return ["SUPER_ADMIN", "SECRETARIAT_USER"];
   }
-  if (path === "/discipline" || path === "/death") return ["SuperAdministrator", "CentralHR", "BoardHR"];
-  if (path === "/payroll" || path === "/benefits" || path.startsWith("/pension") || path.startsWith("/retirement") || path === "/early-retirement") {
-    return ["SuperAdministrator", "CentralHR", "FinanceOfficer"];
-  }
-  if (path === "/recruitment" || path === "/applicants" || path === "/recruitment/applications") {
-    return ["SuperAdministrator", "CentralHR", "BoardHR"];
-  }
-  if (path === "/organization/archdeaconries" || path === "/organization/parishes" || path === "/organization/local-churches") {
-    return ["SuperAdministrator", "CentralHR", "ArchdeaconryAdmin", "ParishAdmin"];
-  }
-  if (path.startsWith("/organization")) return ["SuperAdministrator", "CentralHR", "BoardHR", "InstitutionAdmin"];
-  if (path === "/documents") return ["SuperAdministrator", "CentralHR", "BoardHR", "RegistryOfficer"];
-  if (path === "/delegations") return hrRoles;
-  return hrRoles;
+  return allBusinessRoles;
 }
 
 export function canAccessModule(path: string, roles: string[]) {
@@ -404,16 +389,8 @@ export function canDeleteModule(path: string, roles: string[]) {
 }
 
 export function canExportModule(path: string, roles: string[]) {
-  const administrators = ["SuperAdministrator"];
-  if (path === "/safeguarding" || path === "/death" || path === "/discipline") return false;
-  if (["/payroll", "/benefits", "/retirement", "/early-retirement"].includes(path) || path.startsWith("/pension")) {
-    return roles.some((role) => [...administrators, "CentralHR", "FinanceOfficer"].includes(role));
-  }
-  if (path === "/family") return roles.some((role) => [...administrators, "CentralHR"].includes(role));
-  if (path === "/documents") return roles.some((role) => [...administrators, "CentralHR", "RegistryOfficer"].includes(role));
-  if (path === "/audit") return roles.some((role) => [...administrators, "Auditor"].includes(role));
-  if (path === "/security") return roles.some((role) => [...administrators, "Auditor", "ICTAdministrator"].includes(role));
-  return canAccessModule(path, roles) && roles.some((role) => [...administrators, "CentralHR", "BoardHR", "Auditor"].includes(role));
+  if (path === "/audit" || path === "/security") return roles.some((role) => platformAdminRoles.includes(role));
+  return canAccessModule(path, roles);
 }
 
 export function getModule(path: string) {

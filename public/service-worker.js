@@ -1,8 +1,30 @@
-const CACHE_NAME = "dhrmis-shell-v1";
+const CACHE_NAME = "dhrmis-static-v2";
 const SHELL_FILES = ["/", "/manifest.webmanifest", "/dhrmis-icon.svg"];
 
+async function precacheEntryAssets(cache) {
+  const response = await fetch("/", { cache: "reload" });
+  if (!response.ok) return;
+
+  const html = await response.text();
+  const assetPaths = new Set();
+  const assetPattern = /(?:src|href)=["']([^"']*\/assets\/[^"']+)["']/g;
+  for (const match of html.matchAll(assetPattern)) {
+    const url = new URL(match[1], self.location.origin);
+    if (url.origin === self.location.origin && url.pathname.startsWith("/assets/")) {
+      assetPaths.add(url.href);
+    }
+  }
+
+  await Promise.allSettled([...assetPaths].map((assetUrl) => cache.add(assetUrl)));
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.addAll(SHELL_FILES);
+    await precacheEntryAssets(cache);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (event) => {
@@ -17,7 +39,9 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(fetch(request).then((response) => {
-      if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put("/", response.clone()));
+      if (response.ok) {
+        event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put("/", response.clone())));
+      }
       return response;
     }).catch(() => caches.match("/")));
     return;
@@ -25,7 +49,9 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname.startsWith("/assets/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/dhrmis-icon.svg") {
     event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-      if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+      if (response.ok && response.type === "basic") {
+        event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone())));
+      }
       return response;
     })));
   }
