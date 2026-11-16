@@ -6,8 +6,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f5f7f6",
-  "theme_color": "#173c2c",
+  "background_color": "#ffffff",
+  "theme_color": "#010D92",
   "icons": [
     { "src": "/dhrmis-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]

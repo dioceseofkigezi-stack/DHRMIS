@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
 
@@ -64,11 +65,11 @@ export default function NotificationCenter() {
   return (
     <div className="notification-center" ref={container}>
       <button type="button" className="notification-trigger" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"} aria-expanded={open} aria-controls="notification-panel" onClick={() => { setOpen((value) => !value); if (!open) void loadNotifications(); }}>
-        <span aria-hidden="true">Bell</span>{unreadCount > 0 && <span className="notification-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+        <Icon name="bell" size={18} />{unreadCount > 0 && <span className="notification-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
       </button>
       {open && <section className="notification-panel" id="notification-panel" aria-label="Notifications">
-        <header className="notification-panel-heading"><div><strong>Notifications</strong><small>{unreadCount} unread</small></div><button type="button" className="text-button" onClick={() => void loadNotifications()} disabled={loading}>Refresh</button></header>
-        {loading ? <p className="notification-empty" role="status">Loading notifications…</p> : unavailable ? <p className="notification-empty" role="status">Notifications are unavailable. Contact your administrator if this continues.</p> : items.length === 0 ? <p className="notification-empty">You’re all caught up.</p> : <ul className="notification-list">{items.map((item) => <li key={item.id}><button type="button" className={`notification-item${item.is_read ? "" : " notification-item-unread"}`} onClick={() => void openNotification(item)}><span className={`notification-severity notification-severity-${item.severity.toLowerCase()}`} aria-hidden="true" /><span className="notification-copy"><strong>{item.title}</strong><small>{item.body}</small><time dateTime={item.created_at}>{new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.created_at))} · {item.category}</time></span></button></li>)}</ul>}
+        <header className="notification-panel-heading"><div><strong>Notifications</strong><small>{unreadCount} unread</small></div><button type="button" className="text-button" onClick={() => void loadNotifications()} disabled={loading}><Icon name="refresh" size={13} />Refresh</button></header>
+        {loading ? <p className="notification-empty" role="status">Loading notifications…</p> : unavailable ? <p className="notification-empty" role="status">Notifications are unavailable. Contact your administrator if this continues.</p> : items.length === 0 ? <p className="notification-empty">You’re all caught up.</p> : <ul className="notification-list">{items.map((item) => <li key={item.id}><button type="button" className={`notification-item${item.is_read ? "" : " notification-item-unread"}`} onClick={() => void openNotification(item)}><span className={`notification-severity notification-severity-${item.severity.toLowerCase()}`} aria-hidden="true" /><span className="notification-copy"><strong>{item.title}</strong><small>{item.body}</small><time dateTime={item.created_at}>{new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.created_at))} · {item.category}</time></span><Icon name="arrowRight" size={15} className="notification-arrow" /></button></li>)}</ul>}
       </section>}
     </div>
   );

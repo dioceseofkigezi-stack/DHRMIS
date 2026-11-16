@@ -660,8 +660,7 @@ BEGIN
     'qualifications', 'training_records',
     'professional_licences', 'leave_records', 'performance_appraisals',
     'appointments',
-    'welfare_records', 'property_assignments', 'succession_records',
-    'delegations'
+    'welfare_records', 'property_assignments', 'succession_records'
   ]
   LOOP
     EXECUTE format(

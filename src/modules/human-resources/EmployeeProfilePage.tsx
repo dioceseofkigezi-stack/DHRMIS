@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { auditService } from "@/core/audit/service";
 import { canAccessModule } from "@/app/modules";
@@ -162,7 +163,7 @@ export default function EmployeeProfilePage({ employeeId }: { employeeId: string
 
   if (!canViewEmployee) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2><p>Your account cannot open employee profiles.</p></div></div>;
   if (loading) return <div className="page-content"><div className="table-state">Loading employee profile…</div></div>;
-  if (!employee) return <div className="page-content"><div className="empty-state"><h2>Employee record unavailable</h2><p>{error || "This record was not found or is outside your authorized access."}</p><Link className="button button-secondary" to="/people">Return to people directory</Link></div></div>;
+  if (!employee) return <div className="page-content"><div className="empty-state"><h2>Employee record unavailable</h2><p>{error || "This record was not found or is outside your authorized access."}</p><Link className="button button-secondary" to="/people"><Icon name="people" size={14} />Return to people directory</Link></div></div>;
 
   const fullName = [employee.title, employee.first_name, employee.middle_name, employee.last_name].filter(Boolean).join(" ");
   const sections = sectionsByTab[tab] ?? [];
@@ -173,7 +174,7 @@ export default function EmployeeProfilePage({ employeeId }: { employeeId: string
       <header className="employee-profile-header">
         <div className="employee-profile-identity">
           <span className="employee-profile-avatar" aria-hidden="true">{employee.first_name.slice(0, 1)}{employee.last_name.slice(0, 1)}</span>
-          <div><p className="eyebrow">{employee.employee_category} · {employee.employee_number}</p><h1>{fullName}</h1><p className="muted">{employee.employee_id} · {employee.email}</p></div>
+          <div><p className="eyebrow">{employee.employee_category} · {employee.employee_number}</p><h1><Icon name="people" size={22} />{fullName}</h1><p className="muted">{employee.employee_id} · {employee.email}</p></div>
         </div>
         <div className="profile-statuses"><span className="status-pill">{employee.employment_status}</span><span className="status-pill status-pill-neutral">{employee.life_status}</span></div>
       </header>
@@ -184,7 +185,7 @@ export default function EmployeeProfilePage({ employeeId }: { employeeId: string
       {tab === "overview" ? <section className="profile-overview-grid" aria-label="Employee overview">
         <article className="panel profile-summary-card"><p className="eyebrow">PERSONAL CONTACT</p><h2>Contact details</h2><dl><div><dt>Email</dt><dd>{employee.email}</dd></div><div><dt>Telephone</dt><dd>{employee.telephone || "Not recorded"}</dd></div><div><dt>Gender</dt><dd>{employee.gender}</dd></div></dl></article>
         <article className="panel profile-summary-card"><p className="eyebrow">EMPLOYMENT</p><h2>Current status</h2><dl><div><dt>Category</dt><dd>{employee.employee_category}</dd></div><div><dt>Employment</dt><dd>{employee.employment_status}</dd></div><div><dt>Life status</dt><dd>{employee.life_status}</dd></div><div><dt>Record created</dt><dd>{new Date(employee.createdAt).toLocaleDateString()}</dd></div></dl></article>
-        {canAccessModule("/assignments", roles) && <article className="panel profile-summary-card profile-summary-wide"><p className="eyebrow">ASSIGNMENT HISTORY</p><h2>Appointments and placements</h2><p className="muted">View current and historical assignments without replacing earlier records.</p><button type="button" className="button button-secondary" onClick={() => setTab("employment")}>Open employment history</button></article>}
+        {canAccessModule("/assignments", roles) && <article className="panel profile-summary-card profile-summary-wide"><p className="eyebrow">ASSIGNMENT HISTORY</p><h2>Appointments and placements</h2><p className="muted">View current and historical assignments without replacing earlier records.</p><button type="button" className="button button-secondary" onClick={() => setTab("employment")}><Icon name="assignment" size={14} />Open employment history</button></article>}
       </section> : tabLoading ? <div className="table-state">Loading {visibleTabs.find((item) => item.id === tab)?.label.toLowerCase()}…</div> : <DataSections sections={sections} rows={rows} />}
     </div>
   );

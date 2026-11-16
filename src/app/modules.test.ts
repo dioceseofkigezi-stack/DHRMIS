@@ -43,6 +43,14 @@ describe("system module registry", () => {
     expect(canExportModule("/safeguarding", ["SafeguardingOfficer"])).toBe(false);
   });
 
+  it("does not treat platform or ICT administration as personnel-data permission", () => {
+    expect(canAccessModule("/people", ["SystemAdministrator"])).toBe(false);
+    expect(canAccessModule("/people", ["ICTAdministrator"])).toBe(false);
+    expect(canAccessModule("/people", ["BoardHR"])).toBe(true);
+    expect(canAccessModule("/admin/scopes", ["SystemAdministrator"])).toBe(false);
+    expect(canAccessModule("/security", ["ICTAdministrator"])).toBe(true);
+  });
+
   it("keeps all data-backed module routes connected to existing tables", () => {
     expect(modulePages.every((module) => module.table && module.columns?.length)).toBe(true);
     expect(modulePages.some((module) => module.path === "/documents" && module.table === "documents")).toBe(true);

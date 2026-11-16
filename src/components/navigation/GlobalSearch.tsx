@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Icon } from "@/components/ui/Icon";
 import { searchAuthorizedRecords, type SearchResult } from "@/core/search/search";
 import { useAuth } from "@/modules/core/auth/context";
+import { getWorkspaceDomain, getWorkspaceFromPath, workspacePath } from "@/core/organizational-scope/workspaces";
 
 export default function GlobalSearch() {
-  const { roles } = useAuth();
+  const { roles, personnelDomains, workspaceDomainCodes } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const workspace = getWorkspaceFromPath(location.pathname, location.search);
+  const activeDomain = workspace && workspaceDomainCodes.includes(workspace.code)
+    ? getWorkspaceDomain(workspace, personnelDomains)
+    : workspaceDomainCodes.length === 1
+      ? personnelDomains.find((domain) => domain.code === workspaceDomainCodes[0])
+      : undefined;
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,7 +34,7 @@ export default function GlobalSearch() {
     const timer = window.setTimeout(() => {
       setLoading(true);
       setError("");
-      void searchAuthorizedRecords(term, roles).then((nextResults) => {
+      void searchAuthorizedRecords(term, roles, activeDomain?.id).then((nextResults) => {
         if (active) setResults(nextResults);
       }).catch(() => {
         if (active) {
@@ -40,7 +49,7 @@ export default function GlobalSearch() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [query, roles]);
+  }, [query, roles, activeDomain?.id]);
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {
@@ -53,13 +62,13 @@ export default function GlobalSearch() {
   function openResult(result: SearchResult) {
     setOpen(false);
     setQuery("");
-    navigate(result.path);
+    navigate(workspace ? workspacePath(result.path, workspace.slug) : result.path);
   }
 
   return (
     <div className="global-search" ref={container}>
       <label className="global-search-input">
-        <span aria-hidden="true">⌕</span>
+        <Icon name="search" size={17} />
         <input
           type="search"
           value={query}

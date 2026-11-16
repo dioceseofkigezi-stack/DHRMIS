@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { Icon } from "@/components/ui/Icon";
 
 export type ToastKind = "success" | "error" | "info";
 interface ToastMessage { id: number; kind: ToastKind; message: string }
@@ -26,7 +27,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div className={`toast toast-${toast.kind}`} key={toast.id} role={toast.kind === "error" ? "alert" : "status"}>
             <span>{toast.message}</span>
-            <button type="button" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)}>×</button>
+            <button type="button" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)}><Icon name="close" size={15} /></button>
           </div>
         ))}
       </div>

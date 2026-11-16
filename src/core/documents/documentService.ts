@@ -1,6 +1,6 @@
 import { supabase } from "@/core/config";
 
-export const DOCUMENT_BUCKET = import.meta.env.VITE_HR_DOCUMENTS_BUCKET || "hr-documents";
+export const DOCUMENT_BUCKET = import.meta.env.VITE_HR_DOCUMENTS_BUCKET?.trim();
 export const MAX_DOCUMENT_SIZE = 50 * 1024 * 1024;
 export const ALLOWED_DOCUMENT_TYPES = new Set([
   "application/pdf",
@@ -42,7 +42,8 @@ async function checksum(file: File) {
 }
 
 export async function uploadDocument(input: DocumentUploadInput) {
-  if (!supabase) throw new Error("Document storage is not configured.");
+  if (!supabase) throw new Error("Supabase is not configured. Check VITE_SUPABASE_URL and its public client key in .env.");
+  if (!DOCUMENT_BUCKET) throw new Error("Document storage is not configured. Add VITE_HR_DOCUMENTS_BUCKET to .env.");
   const fileError = validateDocumentFile(input.file);
   if (fileError) throw new Error(fileError);
   const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -77,7 +78,8 @@ export async function uploadDocument(input: DocumentUploadInput) {
 }
 
 export async function createDocumentDownloadUrl(storagePath: string, fileName: string) {
-  if (!supabase) throw new Error("Document storage is not configured.");
+  if (!supabase) throw new Error("Supabase is not configured. Check VITE_SUPABASE_URL and its public client key in .env.");
+  if (!DOCUMENT_BUCKET) throw new Error("Document storage is not configured. Add VITE_HR_DOCUMENTS_BUCKET to .env.");
   const { data, error } = await supabase.storage.from(DOCUMENT_BUCKET).createSignedUrl(storagePath, 60, { download: fileName });
   if (error || !data?.signedUrl) throw new Error("The document could not be opened. Check your access and try again.");
   return data.signedUrl;

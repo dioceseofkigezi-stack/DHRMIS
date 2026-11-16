@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormE
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "@/core/config";
 import { canAccessModule, canDeleteModule, canExportModule, canWriteModule, getModule, moduleWriteRoles, type FieldConfig } from "@/app/modules";
+import { getPathIcon, Icon } from "@/components/ui/Icon";
 import DataTable from "@/components/tables/DataTable";
 import ConfirmDialog from "@/components/feedback/ConfirmDialog";
 import { csvCell } from "@/core/security/csv";
@@ -9,6 +10,7 @@ import { displayValue } from "@/core/security/displayValue";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useAuth } from "@/modules/core/auth/context";
+import { getWorkspaceDomain, getWorkspaceFromPath, workspacePath } from "@/core/organizational-scope/workspaces";
 
 type Row = Record<string, unknown> & { id: string };
 type FormValues = Record<string, unknown>;
@@ -70,10 +72,16 @@ function EditField({ field, value, onChange, employees }: {
 
 export default function ModulePage() {
   const location = useLocation();
-  const { roles, session } = useAuth();
+  const { roles, session, personnelDomains, workspaceDomainCodes } = useAuth();
   const showToast = useToast();
   const online = useNetworkStatus();
   const config = getModule(location.pathname);
+  const activeWorkspace = getWorkspaceFromPath(location.pathname, location.search);
+  const activeDomain = activeWorkspace && workspaceDomainCodes.includes(activeWorkspace.code)
+    ? getWorkspaceDomain(activeWorkspace, personnelDomains)
+    : workspaceDomainCodes.length === 1
+      ? personnelDomains.find((domain) => domain.code === workspaceDomainCodes[0])
+      : undefined;
   const [rows, setRows] = useState<Row[]>([]);
   const [employees, setEmployees] = useState<Array<{ id: string; label: string }>>([]);
   const [search, setSearch] = useState("");
@@ -98,7 +106,7 @@ export default function ModulePage() {
     setSearch("");
     setSortKey("");
     setSortAscending(true);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -126,8 +134,10 @@ export default function ModulePage() {
     setLoading(true);
     setError("");
     try {
-      const selectedColumns = [...new Set(["id", ...(config.columns ?? []), ...(config.fields ?? []).map((field) => field.name)])];
-      let query = client.from(config.table).select(selectedColumns.join(","), { count: "exact" });
+      const selectedColumns = [...new Set(["id", ...(config.columns ?? []), ...(config.fields ?? []).map((field) => field.name), ...(config.table === "employee_transfers" ? ["created_by"] : [])])];
+      const table = config.table === "employees" && activeDomain ? "personnel_domain_employees" : config.table;
+      let query = client.from(table).select(selectedColumns.join(","), { count: "exact" });
+      if (config.table === "employees" && activeDomain) query = query.eq("personnel_domain_id", activeDomain.id);
       if (config.filter) query = query.eq(config.filter.column, config.filter.value);
       if (debouncedSearch && searchColumn) query = query.ilike(searchColumn, `%${debouncedSearch.replace(/[\\%_]/g, "\\$&")}%`);
       const orderBy = sortKey && config.columns?.includes(sortKey) ? sortKey : config.columns?.[0] ?? "id";
@@ -154,7 +164,7 @@ export default function ModulePage() {
     } finally {
       setLoading(false);
     }
-  }, [config, roles, session?.user.id, debouncedSearch, searchColumn, page, sortKey, sortAscending]);
+  }, [config, roles, session?.user.id, debouncedSearch, searchColumn, page, sortKey, sortAscending, location.search, activeDomain?.id]);
 
   useEffect(() => { void loadRows(); }, [loadRows]);
 
@@ -190,7 +200,7 @@ export default function ModulePage() {
     !roles.some((role) => role !== "Employee" && moduleWriteRoles(pageConfig.path).includes(role)) &&
     (pageConfig.path === "/leave" || pageConfig.path === "/early-retirement");
   const canEdit = Boolean(pageConfig.fields?.length && !pageConfig.readOnly && canWriteModule(pageConfig.path, roles));
-  const canEditExisting = canEdit && !selfServiceEmployee;
+  const canEditExisting = canEdit && !selfServiceEmployee && pageConfig.table !== "employee_transfers";
   const canDelete = canEdit && Boolean(pageConfig.allowDelete) && canDeleteModule(pageConfig.path, roles);
   const canExport = canExportModule(pageConfig.path, roles);
   const columns = pageConfig.columns ?? [];
@@ -241,11 +251,46 @@ export default function ModulePage() {
         }
       }
       if (selfServiceEmployee) payload.status = pageConfig.path === "/leave" ? "Requested" : "Submitted";
-      const result = selected
-        ? await supabase.from(pageConfig.table).update(payload).eq("id", selected.id).select("id").maybeSingle()
-        : await supabase.from(pageConfig.table).insert(payload).select("id").single();
-      if (result.error) throw result.error;
-      if (!result.data) throw new Error("No record was changed. It may have been removed or your account may not have permission.");
+
+      if (["assignments", "employee_roles", "vacancies", "departments", "institutions", "grades", "positions"].includes(pageConfig.table) && activeDomain) {
+        payload.personnel_domain_id = activeDomain.id;
+        payload.board_id = activeDomain.boardId;
+      }
+
+      if (pageConfig.table === "employees" && !selected) {
+        if (!activeDomain) throw new Error("Open an assigned personnel workspace before creating an employee.");
+        const { data, error: createError } = await supabase.rpc("create_employee_in_personnel_domain", {
+          employee_data: payload,
+          target_domain_id: activeDomain.id,
+        });
+        if (createError) throw createError;
+        if (!data) throw new Error("The employee could not be created in this personnel domain.");
+      } else if (pageConfig.table === "employee_transfers" && !selected) {
+        const { data, error: transferError } = await supabase.rpc("request_employee_transfer", {
+          source_assignment_id: payload.previous_assignment_id,
+          target_domain_id: payload.new_domain_id,
+          effective_date: payload.effective_date,
+          transfer_reason: payload.reason,
+          transfer_authority: payload.authority ?? null,
+          transfer_reference: payload.reference_number ?? null,
+          assignment_details: {
+            assignment_type: payload.assignment_type ?? null,
+            department_id: payload.department_id ?? null,
+            institution_id: payload.institution_id ?? null,
+            position_id: payload.position_id ?? null,
+            grade_id: payload.grade_id ?? null,
+            supervisor_id: payload.supervisor_id ?? null,
+          },
+        });
+        if (transferError) throw transferError;
+        if (!data) throw new Error("The transfer request could not be created.");
+      } else {
+        const result = selected
+          ? await supabase.from(pageConfig.table).update(payload).eq("id", selected.id).select("id").maybeSingle()
+          : await supabase.from(pageConfig.table).insert(payload).select("id").single();
+        if (result.error) throw result.error;
+        if (!result.data) throw new Error("No record was changed. It may have been removed or your account may not have permission.");
+      }
       setModalOpen(false);
       showToast(selected ? "Record updated successfully." : "Record created successfully.", "success");
       await loadRows();
@@ -254,6 +299,24 @@ export default function ModulePage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleTransferAction(row: Row) {
+    if (!online || !supabase || pageConfig.table !== "employee_transfers") return;
+    const rpc = row.status === "Pending"
+      ? "approve_employee_transfer"
+      : row.status === "Approved"
+        ? "complete_employee_transfer"
+        : undefined;
+    if (!rpc) return;
+    setError("");
+    const { error: transferError } = await supabase.rpc(rpc, { target_transfer_id: row.id });
+    if (transferError) {
+      setError(getErrorMessage(transferError));
+      return;
+    }
+    showToast(row.status === "Pending" ? "Transfer approved. It will take effect on its recorded date." : "Transfer completed.", "success");
+    await loadRows();
   }
 
   async function handleDelete() {
@@ -309,7 +372,7 @@ export default function ModulePage() {
     key: column,
     label: column.replaceAll("_", " "),
     render: (row: Row) => pageConfig.table === "employees" && ["employee_number", "first_name", "last_name"].includes(column)
-      ? <Link className="record-link" to={`/people/${row.id}`}>{displayValue(row[column])}</Link>
+      ? <Link className="record-link" to={activeWorkspace ? workspacePath(`/people/${row.id}`, activeWorkspace.slug) : `/people/${row.id}`}>{displayValue(row[column])}</Link>
       : displayValue(row[column]),
   }));
   const pageCount = Math.max(1, Math.ceil(count / PAGE_SIZE));
@@ -321,34 +384,36 @@ export default function ModulePage() {
       {!hasAccess && <div className="empty-state"><div className="empty-mark">Restricted</div><h2>Access restricted</h2><p>Your account does not have a role that can access this page.</p></div>}
       {hasAccess && <>
         <header className="page-heading">
-          <div><p className="eyebrow">{pageConfig.group.toUpperCase()}</p><h1>{pageConfig.label}</h1><p className="muted">{pageConfig.description}</p></div>
-          {canEdit && <button className="button button-primary" onClick={openCreate} disabled={!online}>New record</button>}
+          <div><p className="eyebrow">{pageConfig.group.toUpperCase()}</p><h1><Icon name={getPathIcon(pageConfig.path)} size={23} />{pageConfig.label}</h1><p className="muted">{pageConfig.description}</p></div>
+          {canEdit && <button className="button button-primary" onClick={openCreate} disabled={!online}><Icon name="plus" size={15} />New record</button>}
         </header>
         {!supabase && <div className="notice notice-warning">The Supabase data service is not configured. Contact your administrator.</div>}
         {!online && <div className="notice notice-warning" role="status">You are offline. Confidential edits are not stored for later synchronization.</div>}
-        {error && <div className="notice notice-error" role="alert">{error}<button className="notice-dismiss" onClick={() => setError("")} aria-label="Dismiss error">×</button></div>}
+        {error && <div className="notice notice-error" role="alert">{error}<button className="notice-dismiss" onClick={() => setError("")} aria-label="Dismiss error"><Icon name="close" size={16} /></button></div>}
         {pageConfig.table && <section className="panel records-panel" aria-label={`${pageConfig.label} records`}>
           <div className="records-toolbar">
             <div><strong>{count.toLocaleString()}</strong><span> {count === 1 ? "record" : "records"}{count ? ` · showing ${firstRecord}–${lastRecord}` : ""}</span></div>
             <div className="toolbar-actions">
-              <label className="search-box"><span aria-hidden="true">⌕</span><input aria-label={`Search ${pageConfig.label}`} placeholder={searchColumn ? "Search records" : "Search unavailable"} value={search} onChange={(event) => setSearch(event.target.value)} disabled={!searchColumn} /></label>
-              {canExport && <button className="button button-secondary button-small" onClick={() => setConfirmExport(true)} disabled={!online || !rows.length || loading}>Export page</button>}
-              <button className="button button-secondary button-small" onClick={() => void loadRows()} disabled={loading}>Refresh</button>
+              <label className="search-box"><Icon name="search" size={14} /><input aria-label={`Search ${pageConfig.label}`} placeholder={searchColumn ? "Search records" : "Search unavailable"} value={search} onChange={(event) => setSearch(event.target.value)} disabled={!searchColumn} /></label>
+              {canExport && <button className="button button-secondary button-small" onClick={() => setConfirmExport(true)} disabled={!online || !rows.length || loading}><Icon name="export" size={14} />Export page</button>}
+              <button className="button button-secondary button-small" onClick={() => void loadRows()} disabled={loading}><Icon name="refresh" size={14} />Refresh</button>
             </div>
           </div>
           {loading ? <div className="table-state" role="status">Loading records…</div> : rows.length ? <>
-            <DataTable rows={rows} columns={tableColumns} sortKey={sortKey || columns[0] || "id"} sortAscending={sortAscending} onSort={(column) => { if (sortKey === column) setSortAscending((current) => !current); else { setSortKey(column); setSortAscending(true); } setPage(0); }} actions={canEditExisting || canDelete ? (row) => <>
-              {canEditExisting && <button className="text-button" onClick={() => openEdit(row)} disabled={!online}>Edit</button>}
-              {canDelete && <button className="text-button text-danger" onClick={() => setPendingDelete(row)} disabled={!online}>Delete</button>}
+            <DataTable rows={rows} columns={tableColumns} sortKey={sortKey || columns[0] || "id"} sortAscending={sortAscending} onSort={(column) => { if (sortKey === column) setSortAscending((current) => !current); else { setSortKey(column); setSortAscending(true); } setPage(0); }} actions={canEditExisting || canDelete || pageConfig.table === "employee_transfers" ? (row) => <>
+              {canEditExisting && <button className="text-button" onClick={() => openEdit(row)} disabled={!online}><Icon name="edit" size={13} />Edit</button>}
+              {canDelete && <button className="text-button text-danger" onClick={() => setPendingDelete(row)} disabled={!online}><Icon name="trash" size={13} />Delete</button>}
+              {pageConfig.table === "employee_transfers" && row.status === "Pending" && row.created_by !== session?.user.id && <button className="text-button" onClick={() => void handleTransferAction(row)} disabled={!online}><Icon name="check" size={13} />Approve</button>}
+              {pageConfig.table === "employee_transfers" && row.status === "Approved" && typeof row.effective_date === "string" && Date.parse(`${row.effective_date}T00:00:00`) <= Date.now() && <button className="text-button" onClick={() => void handleTransferAction(row)} disabled={!online}><Icon name="check" size={13} />Complete</button>}
             </> : undefined} />
-            <div className="pagination-bar"><span>Page {page + 1} of {pageCount}</span><div><button className="button button-secondary button-small" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0}>Previous</button><button className="button button-secondary button-small" onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))} disabled={page >= pageCount - 1}>Next</button></div></div>
-          </> : <div className="empty-state"><div className="empty-mark">No records</div><h2>{debouncedSearch ? "No matching records" : "No records yet"}</h2><p>{debouncedSearch ? "Try another search term or clear the search." : "There are no records in this view yet."}</p>{canEdit && !debouncedSearch && <button className="button button-primary" onClick={openCreate}>Create a record</button>}</div>}
+            <div className="pagination-bar"><span>Page {page + 1} of {pageCount}</span><div><button className="button button-secondary button-small" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0}><Icon name="arrowLeft" size={13} />Previous</button><button className="button button-secondary button-small" onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))} disabled={page >= pageCount - 1}>Next<Icon name="arrowRight" size={13} /></button></div></div>
+          </> : <div className="empty-state"><div className="empty-mark">No records</div><h2>{debouncedSearch ? "No matching records" : "No records yet"}</h2><p>{debouncedSearch ? "Try another search term or clear the search." : "There are no records in this view yet."}</p>{canEdit && !debouncedSearch && <button className="button button-primary" onClick={openCreate}><Icon name="plus" size={14} />Create a record</button>}</div>}
         </section>}
         {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
           <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-            <div className="modal-heading"><div><p className="eyebrow">{pageConfig.label}</p><h2 id="modal-title">{selected ? "Edit record" : "New record"}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)} aria-label="Close dialog" disabled={saving}>×</button></div>
+            <div className="modal-heading"><div><p className="eyebrow">{pageConfig.label}</p><h2 id="modal-title">{selected ? "Edit record" : "New record"}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)} aria-label="Close dialog" disabled={saving}><Icon name="close" size={18} /></button></div>
             <form onSubmit={(event) => void handleSave(event)}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))} />)}</div>
-              <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || !online}>{saving ? "Saving…" : selected ? "Save changes" : "Create record"}</button></div>
+              <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || !online}>{saving ? "Saving…" : <><Icon name={selected ? "check" : "plus"} size={14} />{selected ? "Save changes" : "Create record"}</>}</button></div>
             </form>
           </section>
         </div>}

@@ -13,6 +13,21 @@ function friendlySignInError(reason: unknown) {
   return "Sign-in could not be completed. Check your details or contact your system administrator.";
 }
 
+function friendlyMfaEnrollmentError(reason: unknown) {
+  const code = reason && typeof reason === "object" && "code" in reason && typeof reason.code === "string"
+    ? reason.code
+    : "";
+  if (code === "mfa_totp_enroll_not_enabled") {
+    return "Authenticator enrollment is disabled in the connected Supabase project. Ask your administrator to enable TOTP enrollment and verification, then try again.";
+  }
+  if (code === "mfa_factor_name_conflict") {
+    return "An existing authenticator could not be cleared. Contact your administrator to reset the incomplete setup.";
+  }
+  return code
+    ? `Authenticator enrollment failed (${code}). Contact your administrator.`
+    : "An authenticator could not be enrolled. Contact your administrator.";
+}
+
 export default function LoginPage() {
   const { session, loading, mfaChallengeRequired, signIn, signOut } = useAuth();
   const navigate = useNavigate();
@@ -24,6 +39,7 @@ export default function LoginPage() {
   const [code, setCode] = useState("");
   const [mfaFactorId, setMfaFactorId] = useState("");
   const [mfaEnrollment, setMfaEnrollment] = useState<{ qrCode: string; secret: string } | null>(null);
+  const [mfaSetupUnavailable, setMfaSetupUnavailable] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -32,16 +48,20 @@ export default function LoginPage() {
     async function prepareMfaChallenge() {
       if (!session || !mfaChallengeRequired || mfaFactorId || !supabase) return;
       setCheckingMfa(true);
+      setError("");
+      setMfaSetupUnavailable(false);
       const { data, error: factorsError } = await supabase.auth.mfa.listFactors();
       if (!active) return;
       if (factorsError) {
         setError("Multi-factor authentication could not be prepared. Try again or contact your administrator.");
+        setMfaSetupUnavailable(true);
         setCheckingMfa(false);
         return;
       }
       const factor = data?.totp.find((candidate) => candidate.status === "verified");
       if (factor) {
         setMfaEnrollment(null);
+        setMfaSetupUnavailable(false);
         setMfaFactorId(factor.id);
         setCheckingMfa(false);
         return;
@@ -50,18 +70,20 @@ export default function LoginPage() {
         const { error: removeError } = await supabase.auth.mfa.unenroll({ factorId: pendingFactor.id });
         if (!active) return;
         if (removeError) {
-          setError("An incomplete authenticator setup must be cleared by your administrator.");
+          setMfaSetupUnavailable(true);
+          setError("An incomplete authenticator setup could not be reset. Contact your administrator.");
           setCheckingMfa(false);
           return;
         }
       }
       const { data: enrollment, error: enrollmentError } = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: "DHRMIS authenticator",
+        friendlyName: `DHRMIS authenticator ${Date.now().toString(36)}`,
       });
       if (!active) return;
       if (enrollmentError || !enrollment?.totp) {
-        setError("An authenticator could not be enrolled. Contact your administrator.");
+        setMfaSetupUnavailable(true);
+        setError(friendlyMfaEnrollmentError(enrollmentError));
       } else {
         setMfaFactorId(enrollment.id);
         setMfaEnrollment({ qrCode: enrollment.totp.qr_code, secret: enrollment.totp.secret });
@@ -70,7 +92,7 @@ export default function LoginPage() {
     }
     void prepareMfaChallenge();
     return () => { active = false; };
-  }, [session, mfaChallengeRequired, mfaFactorId, mfaEnrollment]);
+  }, [session, mfaChallengeRequired, mfaFactorId]);
 
   if (loading) return <div className="screen-state">Checking your session…</div>;
   if (session && !mfaFactorId && !checkingMfa && !mfaChallengeRequired) return <Navigate to="/dashboard" replace />;
@@ -116,6 +138,7 @@ export default function LoginPage() {
       await signOut();
       setMfaFactorId("");
       setMfaEnrollment(null);
+      setMfaSetupUnavailable(false);
       setCode("");
       setError("");
     } catch {
@@ -128,12 +151,12 @@ export default function LoginPage() {
       <section className="login-card" aria-labelledby="login-title">
         <div className="brand-lockup"><span className="brand-symbol">DK</span><span>DHRMIS</span></div>
         <p className="eyebrow">DIOCESE OF KIGEZI</p>
-        <h1 id="login-title">{mfaEnrollment ? "Set up your authenticator" : mfaFactorId ? "Verify your identity" : "Welcome back"}</h1>
-        <p className="muted">{mfaEnrollment ? "Scan the QR code with an authenticator app, then enter its six-digit code." : mfaFactorId ? "Enter the current code from your authenticator app." : "Sign in to your human resource management workspace."}</p>
+        <h1 id="login-title">{mfaEnrollment ? "Set up your authenticator" : mfaSetupUnavailable ? "Authenticator setup required" : mfaFactorId ? "Verify your identity" : "Welcome back"}</h1>
+        <p className="muted">{mfaEnrollment ? "Scan the QR code with an authenticator app, then enter its six-digit code." : mfaSetupUnavailable ? "Your account requires a verified authenticator. Contact your administrator for help." : mfaFactorId ? "Enter the current code from your authenticator app." : "Sign in to your human resource management workspace."}</p>
         {mfaEnrollment && <div className="notice notice-warning"><img className="mfa-qr-code" src={mfaEnrollment.qrCode} alt="Authenticator enrollment QR code" /><p>If you cannot scan the code, enter this setup key manually:</p><code>{mfaEnrollment.secret}</code></div>}
         {!supabase && <div className="notice notice-warning">Connect the approved Supabase project in the application environment.</div>}
         {error && <div className="notice notice-error" role="alert">{error}</div>}
-        <form className="form-stack" onSubmit={(event) => void handleSubmit(event)}>
+        {mfaSetupUnavailable ? <button type="button" className="button button-secondary button-full" onClick={() => void switchAccount()}>Use another account</button> : <form className="form-stack" onSubmit={(event) => void handleSubmit(event)}>
           {!mfaFactorId ? <>
             <label>Email address<input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@diocese.org" /></label>
             <label>Password
@@ -145,7 +168,7 @@ export default function LoginPage() {
             {submitting ? "Please wait…" : mfaFactorId ? "Verify and continue" : "Sign in"}
           </button>
           {mfaFactorId && <button type="button" className="text-button login-back" onClick={() => void switchAccount()}>Use another account</button>}
-        </form>
+        </form>}
         <p className="login-footer">Access is protected by your diocesan account and database permissions.</p>
       </section>
     </main>
