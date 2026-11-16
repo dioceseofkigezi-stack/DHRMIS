@@ -301,23 +301,9 @@ message_service_sid = ""
 # DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
 auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 
-[auth.mfa]
-
-[auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
-
 [auth.sessions]
 timebox = "12h"
 inactivity_timeout = "30m"
-
-[auth.mfa.phone]
-enroll_enabled = false
-verify_enabled = false
-
-[auth.mfa.web_authn]
-enroll_enabled = false
-verify_enabled = false
 
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,

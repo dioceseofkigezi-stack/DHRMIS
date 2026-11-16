@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.roles (
 );
 
 INSERT INTO public.roles (role_code, role_name, scope_type, scope_code) VALUES
-  ('SUPER_SYSTEM_ADMIN', 'Super System Administrator', 'SYSTEM', NULL),
+  ('SUPER_SYSTEM_ADMIN', 'Super/System Administrator', 'SYSTEM', NULL),
   ('SECRETARIAT_USER', 'Secretariat / Main Office User', 'PERSONNEL_DOMAIN', 'SECRETARIAT'),
   ('MISSION_BOARD_USER', 'Mission Board User', 'PERSONNEL_DOMAIN', 'MISSION'),
   ('EDUCATION_BOARD_USER', 'Education Board User', 'PERSONNEL_DOMAIN', 'EDUCATION'),
@@ -209,6 +209,8 @@ WITH scoped_domains AS (
       WHEN 'FinanceOfficer' THEN 'LAND_FINANCE_BOARD_USER'
       WHEN 'BoardHR' THEN primary_scope.role_code
       WHEN 'InstitutionAdmin' THEN primary_scope.role_code
+      WHEN 'SUPER_ADMIN' THEN 'SUPER_SYSTEM_ADMIN'
+      WHEN 'SYSTEM_ADMIN' THEN 'SUPER_SYSTEM_ADMIN'
       WHEN 'SUPER_SYSTEM_ADMIN' THEN 'SUPER_SYSTEM_ADMIN'
       WHEN 'SECRETARIAT_USER' THEN 'SECRETARIAT_USER'
       WHEN 'MISSION_BOARD_USER' THEN 'MISSION_BOARD_USER'
@@ -444,7 +446,9 @@ AS $function$
         AND (
           assignment.role_code = ANY (allowed_roles)
           OR (assignment.role_code = 'SUPER_SYSTEM_ADMIN'
-            AND allowed_roles && ARRAY['SuperAdministrator', 'SystemAdministrator']::TEXT[])
+            AND allowed_roles && ARRAY[
+              'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SuperAdministrator', 'SystemAdministrator'
+            ]::TEXT[])
           OR (assignment.role_code = 'SECRETARIAT_USER'
             AND allowed_roles && ARRAY['CentralHR', 'ArchdeaconryAdmin', 'ParishAdmin']::TEXT[])
           OR (assignment.role_code = 'MISSION_BOARD_USER'
@@ -1090,7 +1094,7 @@ $directory_policies$;
 
 CREATE POLICY dioceses_read_authorized ON public.dioceses FOR SELECT TO authenticated
   USING (public.has_active_role(ARRAY[
-    'SUPER_SYSTEM_ADMIN', 'SUPER_SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
+    'SUPER_SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
     'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER', 'LAND_FINANCE_BOARD_USER',
     'PLANNING_DEVELOPMENT_BOARD_USER', 'ICT_BOARD_USER'
   ]::TEXT[]));
@@ -1343,7 +1347,7 @@ CREATE POLICY hr_documents_storage_delete ON storage.objects FOR DELETE TO authe
     CASE WHEN split_part(name, '/', 2) ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
       THEN split_part(name, '/', 2)::UUID ELSE NULL END));
 
--- User access and assigned scopes are administered only by the Super Admin;
+-- User access and assigned scopes are administered only by the platform admin;
 -- account holders can read their own role and scope rows for session loading.
 DROP POLICY IF EXISTS user_roles_manage_admin ON public.user_roles;
 DROP POLICY IF EXISTS user_roles_read_own_or_admin ON public.user_roles;
@@ -1384,8 +1388,8 @@ CREATE POLICY user_sessions_self_revoke ON public.user_sessions FOR UPDATE TO au
   USING (user_id = auth.uid() AND auth_session_id = auth.jwt() ->> 'session_id' AND isactive IS TRUE)
   WITH CHECK (user_id = auth.uid() AND auth_session_id = auth.jwt() ->> 'session_id' AND isactive IS FALSE);
 
--- Technical administrators can monitor technical events and related audit
--- entries, while HR audit and sensitive-read records stay Super Admin only.
+-- The platform administrator retains both system monitoring and full audit
+-- oversight permissions.
 DO $policies$
 DECLARE policy_row RECORD;
 BEGIN
@@ -1408,12 +1412,9 @@ CREATE POLICY security_event_insert_own ON public.security_event FOR INSERT TO a
 CREATE POLICY security_event_update_technical ON public.security_event FOR UPDATE TO authenticated
   USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]))
   WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
-CREATE POLICY audit_log_read_super_admin ON public.audit_log FOR SELECT TO authenticated
+CREATE POLICY audit_log_read_platform_admin ON public.audit_log FOR SELECT TO authenticated
   USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
-CREATE POLICY audit_log_read_system_technical ON public.audit_log FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
-    AND module IN ('security_event', 'system_config', 'user_roles', 'user_scopes', 'auth'));
-CREATE POLICY sensitive_read_log_read_super_admin ON public.sensitive_read_log FOR SELECT TO authenticated
+CREATE POLICY sensitive_read_log_read_platform_admin ON public.sensitive_read_log FOR SELECT TO authenticated
   USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 CREATE POLICY sensitive_read_log_insert_own ON public.sensitive_read_log FOR INSERT TO authenticated
   WITH CHECK (user_id = auth.uid() AND public.has_active_role(ARRAY[

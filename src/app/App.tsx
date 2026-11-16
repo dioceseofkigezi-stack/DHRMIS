@@ -8,7 +8,7 @@ import { AppErrorBoundary } from "@/core/errors/AppErrorBoundary";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useAuth } from "@/modules/core/auth/context";
-import { canAccessWorkspace, getWorkspaceFromPath, getWorkspaceNavigation, personnelWorkspaces, workspacePath } from "@/core/organizational-scope/workspaces";
+import { canAccessWorkspace, getWorkspaceFromPath, getWorkspaceNavigation, personnelWorkspaces, roleDisplayName, workspacePath } from "@/core/organizational-scope/workspaces";
 
 const DashboardPage = lazy(() => import("@/app/DashboardPage"));
 const ModulePage = lazy(() => import("@/app/ModulePage"));
@@ -126,7 +126,7 @@ export default function App() {
           <NotificationCenter />
           <details className="profile-menu">
             <summary aria-label="Open account menu"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="profile-menu-name">{name}</span></summary>
-            <div className="profile-menu-panel"><strong>{name}</strong><small>{session.user.email}</small><small>{roles.join(", ") || "No active role"}</small></div>
+            <div className="profile-menu-panel"><strong>{name}</strong><small>{session.user.email}</small><small>{roles.map(roleDisplayName).join(", ") || "No active role"}</small></div>
           </details>
           <span className="topbar-date">{new Intl.DateTimeFormat("en", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(new Date())}</span>
         </header>

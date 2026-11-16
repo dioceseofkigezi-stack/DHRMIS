@@ -42,13 +42,13 @@ describe("system module registry", () => {
     expect(canExportModule("/safeguarding", ["HEALTH_BOARD_USER"])).toBe(false);
   });
 
-  it("does not treat platform or ICT administration as personnel-data permission", () => {
+  it("gives the merged platform administrator the combined administrator capabilities", () => {
     expect(canAccessModule("/people", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
-    expect(canAccessModule("/people", ["ICT_BOARD_USER"])).toBe(true);
-    expect(canAccessModule("/people", ["EDUCATION_BOARD_USER"])).toBe(true);
     expect(canAccessModule("/admin/scopes", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
     expect(canAccessModule("/admin/sessions", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
-    expect(canAccessModule("/security", ["ICT_BOARD_USER"])).toBe(false);
+    expect(canAccessModule("/security", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
+    expect(canAccessModule("/admin/scopes", ["ICT_BOARD_USER"])).toBe(false);
+    expect(canAccessModule("/admin/sessions", ["EDUCATION_BOARD_USER"])).toBe(false);
   });
 
   it("keeps all data-backed module routes connected to existing tables", () => {

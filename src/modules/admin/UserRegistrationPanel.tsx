@@ -4,7 +4,7 @@ import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
 
 const roleOptions = [
-  { code: "SUPER_SYSTEM_ADMIN", label: "Super System Administrator" },
+  { code: "SUPER_SYSTEM_ADMIN", label: "Super/System Administrator" },
   { code: "SECRETARIAT_USER", label: "Secretariat / Main Office user" },
   { code: "MISSION_BOARD_USER", label: "Mission Board user" },
   { code: "EDUCATION_BOARD_USER", label: "Education Board user" },
@@ -70,7 +70,7 @@ export default function UserRegistrationPanel({ online }: { online: boolean }) {
         <div>
           <p className="eyebrow">ACCOUNT PROVISIONING</p>
           <h2 id="register-user-title">Register a user</h2>
-          <p className="muted">Invite a named account holder. The selected business role receives its matching department scope automatically.</p>
+          <p className="muted">Invite a named account holder. Department roles receive their matching scope automatically; the platform administrator has system-wide access.</p>
         </div>
       </div>
       {error && <div className="notice notice-error registration-message" role="alert">{error}</div>}

@@ -91,6 +91,20 @@ export const personnelWorkspaces: PersonnelWorkspace[] = [
 
 export const businessRoleCodes = personnelWorkspaces.map((workspace) => workspace.roleCode);
 export const systemRoleCodes = ["SUPER_SYSTEM_ADMIN"] as const;
+const roleLabels: Record<string, string> = {
+  SUPER_SYSTEM_ADMIN: "Super/System Administrator",
+  SECRETARIAT_USER: "Secretariat / Main Office User",
+  MISSION_BOARD_USER: "Mission Board User",
+  EDUCATION_BOARD_USER: "Education Board User",
+  HEALTH_BOARD_USER: "Health Board User",
+  LAND_FINANCE_BOARD_USER: "Land & Finance Board User",
+  PLANNING_DEVELOPMENT_BOARD_USER: "Planning & Development Board User",
+  ICT_BOARD_USER: "ICT Board User",
+};
+
+export function roleDisplayName(roleCode: string) {
+  return roleLabels[roleCode] ?? roleCode;
+}
 
 export function getWorkspace(slug: string | undefined) {
   return personnelWorkspaces.find((workspace) => workspace.slug === slug);

@@ -10,7 +10,7 @@ import { displayValue } from "@/core/security/displayValue";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useAuth } from "@/modules/core/auth/context";
-import { canAccessWorkspace, getWorkspaceDomain, getWorkspaceFromPath, workspacePath } from "@/core/organizational-scope/workspaces";
+import { canAccessWorkspace, getWorkspaceDomain, getWorkspaceFromPath, roleDisplayName, workspacePath } from "@/core/organizational-scope/workspaces";
 import UserRegistrationPanel from "@/modules/admin/UserRegistrationPanel";
 
 type Row = Record<string, unknown> & { id: string };
@@ -64,7 +64,7 @@ function EditField({ field, value, onChange, employees, employeesLoading }: {
     <label className={field.kind === "textarea" || field.kind === "json" ? "field field-wide" : "field"} htmlFor={common.id}>
       {field.label}{field.required && <span aria-hidden="true" className="required-indicator"> *</span>}
       {field.kind === "textarea" || field.kind === "json" ? <textarea {...common} value={typeof value === "string" ? value : JSON.stringify(value ?? [], null, 2)} rows={3} placeholder={field.placeholder} /> :
-        field.kind === "select" ? <select {...common} value={String(value ?? "")}><option value="">Select…</option>{field.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select> :
+        field.kind === "select" ? <select {...common} value={String(value ?? "")}><option value="">Select…</option>{field.options?.map((option) => <option key={option} value={option}>{field.name === "role_code" ? roleDisplayName(option) : option}</option>)}</select> :
           field.kind === "employee" ? employeesLoading ? <select {...common} value="" disabled><option value="">Loading employees…</option></select> : employees.length ? <select {...common} value={String(value ?? "")}><option value="">Select an employee…</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}</select> : <input {...common} value={String(value ?? "")} placeholder="Employee record ID" /> :
             field.kind === "checkbox" ? <span className="checkbox-control"><input {...common} type="checkbox" checked={Boolean(value)} /> Yes</span> :
               <input {...common} type={field.kind ?? "text"} value={field.kind === "date" && value ? String(value).slice(0, 10) : String(value ?? "")} placeholder={field.placeholder} />}
@@ -377,7 +377,7 @@ export default function ModulePage() {
     label: column.replaceAll("_", " "),
     render: (row: Row) => pageConfig.table === "employees" && ["employee_number", "first_name", "last_name"].includes(column)
       ? <Link className="record-link" to={activeWorkspace ? workspacePath(`/people/${row.id}`, activeWorkspace.slug) : `/people/${row.id}`}>{displayValue(row[column])}</Link>
-      : displayValue(row[column]),
+      : column === "role_code" ? roleDisplayName(String(row[column] ?? "")) : displayValue(row[column]),
   }));
   const pageCount = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const firstRecord = count === 0 ? 0 : page * PAGE_SIZE + 1;

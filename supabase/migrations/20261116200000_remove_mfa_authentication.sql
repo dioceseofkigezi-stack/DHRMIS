@@ -39,7 +39,9 @@ AS $function$
         AND (
           assignment.role_code = ANY (allowed_roles)
           OR (assignment.role_code = 'SUPER_SYSTEM_ADMIN'
-            AND allowed_roles && ARRAY['SuperAdministrator', 'SystemAdministrator']::TEXT[])
+            AND allowed_roles && ARRAY[
+              'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SuperAdministrator', 'SystemAdministrator'
+            ]::TEXT[])
           OR (assignment.role_code = 'SECRETARIAT_USER'
             AND allowed_roles && ARRAY['CentralHR', 'ArchdeaconryAdmin', 'ParishAdmin']::TEXT[])
           OR (assignment.role_code IN ('MISSION_BOARD_USER', 'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER',

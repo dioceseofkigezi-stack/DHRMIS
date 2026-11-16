@@ -6,6 +6,7 @@ import {
   getWorkspaceNavigation,
   getWorkspaceFromPath,
   personnelWorkspaces,
+  roleDisplayName,
 } from "@/core/organizational-scope/workspaces";
 
 describe("personnel workspaces", () => {
@@ -23,11 +24,18 @@ describe("personnel workspaces", () => {
     expect(canAccessWorkspace(education, ["ICT_BOARD_USER"], ["EDUCATION"])).toBe(false);
   });
 
-  it("keeps ICT system access separate from ICT personnel management", () => {
+  it("keeps Board personnel access scoped while the platform administrator has system-wide scope", () => {
     const ict = getWorkspace("ict")!;
+    const education = getWorkspace("education")!;
     expect(canAccessWorkspace(ict, ["ICT_BOARD_USER"], ["ICT"])).toBe(true);
+    expect(canAccessWorkspace(education, ["ICT_BOARD_USER"], ["ICT"])).toBe(false);
     expect(canManageWorkspacePersonnel(ict, ["ICT_BOARD_USER"])).toBe(true);
     expect(canManageWorkspacePersonnel(ict, ["SUPER_SYSTEM_ADMIN"])).toBe(true);
+    expect(canAccessWorkspace(education, ["SUPER_SYSTEM_ADMIN"], [])).toBe(true);
+  });
+
+  it("uses one human-readable name for the merged administrator role", () => {
+    expect(roleDisplayName("SUPER_SYSTEM_ADMIN")).toBe("Super/System Administrator");
   });
 
   it("keeps ecclesiastical navigation in the Secretariat workspace", () => {

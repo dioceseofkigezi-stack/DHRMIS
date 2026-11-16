@@ -10,6 +10,31 @@ BEGIN
     RAISE EXCEPTION 'Expected a Secretariat domain and six Board personnel domains';
   END IF;
 
+  IF (SELECT COUNT(*) FROM public.roles WHERE is_active IS TRUE) <> 8
+     OR NOT EXISTS (
+       SELECT 1 FROM public.roles
+       WHERE role_code = 'SUPER_SYSTEM_ADMIN' AND is_active IS TRUE
+         AND scope_type = 'SYSTEM' AND scope_code IS NULL
+     )
+     OR EXISTS (
+       SELECT 1 FROM public.roles
+       WHERE role_code IN ('SUPER_ADMIN', 'SYSTEM_ADMIN') AND is_active IS TRUE
+     ) THEN
+    RAISE EXCEPTION 'The role catalog must contain one platform administrator and seven department roles';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.user_roles WHERE role_code IN ('SUPER_ADMIN', 'SYSTEM_ADMIN')
+  ) OR (SELECT COUNT(*) FROM public.user_roles
+        WHERE role_code = 'SUPER_SYSTEM_ADMIN' AND isactive IS TRUE AND issuspended IS FALSE) > 1 THEN
+    RAISE EXCEPTION 'Administrator assignments must use one canonical role and one active account';
+  END IF;
+
+  IF (SELECT COUNT(DISTINCT permission_code) FROM public.role_permissions
+      WHERE role_code = 'SUPER_SYSTEM_ADMIN') <> (SELECT COUNT(*) FROM public.permissions) THEN
+    RAISE EXCEPTION 'The merged administrator must retain the union of the existing administrator permissions';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM public.personnel_domains
     WHERE code = 'SECRETARIAT' AND is_secretariat IS TRUE AND board_id IS NULL
@@ -52,13 +77,13 @@ BEGIN
   SELECT pg_get_functiondef('public.can_access_employee(uuid)'::regprocedure) INTO access_function;
   IF access_function ILIKE '%SystemAdministrator%'
      OR access_function ILIKE '%ICTAdministrator%' THEN
-    RAISE EXCEPTION 'System or ICT administration has inherited employee-data access';
+    RAISE EXCEPTION 'Legacy system or ICT-only roles must not bypass employee scope checks';
   END IF;
 
   SELECT pg_get_functiondef('public.can_manage_personnel_domain(uuid)'::regprocedure) INTO management_function;
   IF management_function ILIKE '%SystemAdministrator%'
      OR management_function ILIKE '%ICTAdministrator%' THEN
-    RAISE EXCEPTION 'System or ICT administration can manage personnel domains';
+    RAISE EXCEPTION 'Legacy system or ICT-only roles must not manage personnel domains';
   END IF;
 
   IF NOT EXISTS (
