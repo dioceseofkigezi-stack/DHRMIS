@@ -311,7 +311,7 @@ export const modulePages: ModuleConfig[] = [
     { name: "user_id", label: "Existing account user ID", required: true },
     { name: "employee_id", label: "Linked employee record", kind: "employee" },
     { name: "role_code", label: "Role", kind: "select", required: true, options: [
-      "SUPER_ADMIN", "SYSTEM_ADMIN", "SECRETARIAT_USER", "MISSION_BOARD_USER",
+      "SUPER_SYSTEM_ADMIN", "SECRETARIAT_USER", "MISSION_BOARD_USER",
       "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER", "LAND_FINANCE_BOARD_USER",
       "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER",
     ] },
@@ -341,33 +341,33 @@ const businessRoles = [
   "SECRETARIAT_USER", "MISSION_BOARD_USER", "EDUCATION_BOARD_USER", "HEALTH_BOARD_USER",
   "LAND_FINANCE_BOARD_USER", "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER",
 ];
-const allBusinessRoles = ["SUPER_ADMIN", ...businessRoles];
-const platformAdminRoles = ["SUPER_ADMIN", "SYSTEM_ADMIN"];
-const financeRoles = ["SUPER_ADMIN", "LAND_FINANCE_BOARD_USER"];
+const allBusinessRoles = ["SUPER_SYSTEM_ADMIN", ...businessRoles];
+const platformAdminRoles = ["SUPER_SYSTEM_ADMIN"];
+const financeRoles = ["SUPER_SYSTEM_ADMIN", "LAND_FINANCE_BOARD_USER"];
 
 export function moduleReadRoles(path: string) {
-  if (path === "/admin/users" || path === "/admin/scopes") return ["SUPER_ADMIN"];
+  if (path === "/admin/users" || path === "/admin/scopes") return ["SUPER_SYSTEM_ADMIN"];
   if (path === "/admin/sessions") return platformAdminRoles;
   if (path === "/settings") return platformAdminRoles;
   if (path === "/security") return platformAdminRoles;
   if (path === "/audit") return platformAdminRoles;
-  if (path === "/safeguarding") return ["SUPER_ADMIN"];
+  if (path === "/safeguarding") return ["SUPER_SYSTEM_ADMIN"];
   if (path === "/payroll" || path === "/benefits" || path.startsWith("/pension")) return financeRoles;
   if (path.startsWith("/organization/archdeaconries") || path.startsWith("/organization/parishes") || path.startsWith("/organization/local-churches")) {
-    return ["SUPER_ADMIN", "SECRETARIAT_USER"];
+    return ["SUPER_SYSTEM_ADMIN", "SECRETARIAT_USER"];
   }
   if (path.startsWith("/organization")) return allBusinessRoles;
   return allBusinessRoles;
 }
 
 export function moduleWriteRoles(path: string) {
-  if (path === "/admin/users" || path === "/admin/scopes") return ["SUPER_ADMIN"];
+  if (path === "/admin/users" || path === "/admin/scopes") return ["SUPER_SYSTEM_ADMIN"];
   if (path === "/admin/sessions") return platformAdminRoles;
   if (path === "/settings") return platformAdminRoles;
-  if (path === "/safeguarding") return ["SUPER_ADMIN"];
+  if (path === "/safeguarding") return ["SUPER_SYSTEM_ADMIN"];
   if (path === "/payroll" || path === "/benefits" || path.startsWith("/pension")) return financeRoles;
   if (path.startsWith("/organization/archdeaconries") || path.startsWith("/organization/parishes") || path.startsWith("/organization/local-churches")) {
-    return ["SUPER_ADMIN", "SECRETARIAT_USER"];
+    return ["SUPER_SYSTEM_ADMIN", "SECRETARIAT_USER"];
   }
   return allBusinessRoles;
 }

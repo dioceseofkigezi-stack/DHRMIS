@@ -36,18 +36,18 @@ describe("system module registry", () => {
 
   it("restricts exports to roles permitted for each data category", () => {
     expect(canExportModule("/people", ["SECRETARIAT_USER"])).toBe(true);
-    expect(canExportModule("/people", ["SYSTEM_ADMIN"])).toBe(false);
+    expect(canExportModule("/people", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
     expect(canExportModule("/payroll", ["LAND_FINANCE_BOARD_USER"])).toBe(true);
     expect(canExportModule("/payroll", ["MISSION_BOARD_USER"])).toBe(false);
     expect(canExportModule("/safeguarding", ["HEALTH_BOARD_USER"])).toBe(false);
   });
 
   it("does not treat platform or ICT administration as personnel-data permission", () => {
-    expect(canAccessModule("/people", ["SYSTEM_ADMIN"])).toBe(false);
+    expect(canAccessModule("/people", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
     expect(canAccessModule("/people", ["ICT_BOARD_USER"])).toBe(true);
     expect(canAccessModule("/people", ["EDUCATION_BOARD_USER"])).toBe(true);
-    expect(canAccessModule("/admin/scopes", ["SYSTEM_ADMIN"])).toBe(false);
-    expect(canAccessModule("/admin/sessions", ["SYSTEM_ADMIN"])).toBe(true);
+    expect(canAccessModule("/admin/scopes", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
+    expect(canAccessModule("/admin/sessions", ["SUPER_SYSTEM_ADMIN"])).toBe(true);
     expect(canAccessModule("/security", ["ICT_BOARD_USER"])).toBe(false);
   });
 

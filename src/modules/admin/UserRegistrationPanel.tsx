@@ -4,8 +4,7 @@ import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
 
 const roleOptions = [
-  { code: "SUPER_ADMIN", label: "Super administrator" },
-  { code: "SYSTEM_ADMIN", label: "System administrator" },
+  { code: "SUPER_SYSTEM_ADMIN", label: "Super System Administrator" },
   { code: "SECRETARIAT_USER", label: "Secretariat / Main Office user" },
   { code: "MISSION_BOARD_USER", label: "Mission Board user" },
   { code: "EDUCATION_BOARD_USER", label: "Education Board user" },
@@ -24,7 +23,7 @@ export default function UserRegistrationPanel({ online }: { online: boolean }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  if (!roles.includes("SUPER_ADMIN")) return null;
+  if (!roles.includes("SUPER_SYSTEM_ADMIN")) return null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

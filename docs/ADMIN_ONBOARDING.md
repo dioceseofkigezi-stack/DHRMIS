@@ -15,8 +15,7 @@ INSERT INTO public.user_roles (
   permissions,
   scopes,
   isactive,
-  issuspended,
-  ismfaenabled
+  issuspended
 )
 VALUES (
   'REPLACE_WITH_AUTH_USER_UUID'::uuid,
@@ -24,12 +23,11 @@ VALUES (
   '[]'::jsonb,
   '[]'::jsonb,
   TRUE,
-  FALSE,
-  TRUE
+  FALSE
 );
 ```
 
-Use the Auth user ID from the Supabase dashboard, not an email address supplied by an untrusted client. Only trusted database operators should run this statement. The database permits one active account per designated role. The administrator must enroll an authenticator and verify a code before accessing DHRMIS.
+Use the Auth user ID from the Supabase dashboard, not an email address supplied by an untrusted client. Only trusted database operators should run this statement. The database permits one active account per designated role.
 
 After signing in, use **Personnel domains** to review the Secretariat domain and the six Board domains. Use **User access** to invite a named person into an available designated role. The database assigns the matching PersonnelDomain scope automatically:
 
@@ -38,7 +36,7 @@ After signing in, use **Personnel domains** to review the Secretariat domain and
 - Archdeaconries, parishes and local churches remain organizational records under the Secretariat. They do not receive independent accounts.
 - `SYSTEM_ADMIN` receives technical configuration and monitoring privileges, without HR-record access.
 
-Keep the Super Administrator account protected and use it to invite, suspend or replace the one named account holder for each role. Super Admins and System Admins can review recorded sign-ins and revoke a session from **Session management**. Role, scope, MFA and session status are enforced by database policies; hiding a page in the frontend is not an authorization control.
+Keep the Super Administrator account protected and use it to invite, suspend or replace the one named account holder for each role. Super Admins and System Admins can review recorded sign-ins and revoke a session from **Session management**. Role, scope and session status are enforced by database policies; hiding a page in the frontend is not an authorization control.
 
 After applying the decentralized-workspace migration, review historical rows that could not be mapped safely before granting access:
 

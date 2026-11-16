@@ -73,7 +73,6 @@ export const AUDIT_CONFIG: AuditConfig = {
     "DOCUMENT_DELETE",
     "EXPORT",
     "MERGE_APPROVE",
-    "MFA_RESET",
   ],
   highRiskActions: [
     "DEATH_VERIFY",

@@ -9,7 +9,6 @@ import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useAuth } from "@/modules/core/auth/context";
 import { canAccessWorkspace, getWorkspaceFromPath, getWorkspaceNavigation, personnelWorkspaces, workspacePath } from "@/core/organizational-scope/workspaces";
-import MfaRequiredPage from "@/modules/auth/MfaRequiredPage";
 
 const DashboardPage = lazy(() => import("@/app/DashboardPage"));
 const ModulePage = lazy(() => import("@/app/ModulePage"));
@@ -20,18 +19,6 @@ const SessionManagementPage = lazy(() => import("@/modules/admin/SessionManageme
 
 function LoadingPage() {
   return <div className="screen-state"><span className="loading-spinner" /> Loading workspace…</div>;
-}
-
-function sessionAal(accessToken: string) {
-  try {
-    const payload = accessToken.split(".")[1];
-    if (!payload) return "";
-    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
-    const claims = JSON.parse(atob(base64)) as Record<string, unknown>;
-    return typeof claims.aal === "string" ? claims.aal : "";
-  } catch {
-    return "";
-  }
 }
 
 export default function App() {
@@ -46,7 +33,6 @@ export default function App() {
   if (loading) return <LoadingPage />;
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (roleLoading) return <LoadingPage />;
-  if (roles.length > 0 && sessionAal(session.access_token) !== "aal2") return <MfaRequiredPage />;
   if (location.pathname === "/") return <Navigate to="/dashboard" replace />;
 
   const activePage = modulePages.find((page) => page.path === location.pathname);

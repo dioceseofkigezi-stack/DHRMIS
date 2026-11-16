@@ -1,6 +1,6 @@
 /**
  * DHRMIS - Authentication & Session Types
- * Supabase Auth, MFA, Session Management, Account Security
+ * Supabase Auth, Session Management, Account Security
  */
 
 import { RoleLevel, PermissionCategory } from "@/types";
@@ -10,7 +10,6 @@ import { RoleLevel, PermissionCategory } from "@/types";
 export interface AuthConfig {
   emailRequired: boolean;
   usernameAllowed: boolean;
-  enableMfa: boolean;
   enablePasswordReset: boolean;
   enablePhoneAuth: boolean;
   passwordMinLength: number;
@@ -37,9 +36,6 @@ export interface DbUser {
     scopes: string[];
     isActive: boolean;
     isSuspended: boolean;
-    isMfaEnabled: boolean;
-    mfaSecret?: string;
-    mfaRecoveryCodes?: string[];
     accountExpiry?: Date;
     createdBy: string;
     createdAt: Date;
@@ -75,28 +71,6 @@ export interface AuthSession {
   isActive: boolean;
 }
 
-// ─── MFA Types ────────────────────────────────────────────────────────────────
-
-export interface MFAEnrollment {
-  id: string;
-  userId: string;
-  authenticatorType: "totp" | "sms";
-  secret: string;
-  qrCodeUri?: string;
-  backupCodes: string[];
-  isVerified: boolean;
-  createdAt: Date;
-  verifiedAt?: Date;
-}
-
-export interface MFAVerifyRequest {
-  verificationCode: string;
-  password?: string; // For password + MFA
-}
-
-export interface MFARecoveryRequest {
-  recoveryCode: string;
-}
 
 // ─── Account Management Types ─────────────────────────────────────────────────
 
@@ -112,7 +86,6 @@ export interface AccountManager {
   scopes: string[];
   isActive: boolean;
   isSuspended: boolean;
-  isMfaEnabled: boolean;
   accountExpiry?: Date;
   loginAttempts: number;
   lockedUntil?: Date;
@@ -137,7 +110,7 @@ export interface PasswordChangeLog {
   userId: string;
   oldPasswordHash?: string;
   newPasswordHash?: string;
-  changeMethod: "Manual" | "Reset" | "Mfa";
+  changeMethod: "Manual" | "Reset";
   ipAddress?: string;
   deviceInfo?: string;
   timestamp: Date;
@@ -166,18 +139,14 @@ export type LoginStatus =
   | "InvalidCredentials"
   | "AccountLocked"
   | "AccountInactive"
-  | "MfaRequired"
-  | "MfaVerifyFailed"
   | "AccountInactiveExpired"
   | "BreakGlassRequired"
-  | "MfaRecoveryRequired"
   | "SessionExpired"
   | "RateLimited";
 
 export interface LoginRequest {
   identifier: string; // email or phone
   password: string;
-  mfaCode?: string;
   rememberDevice?: boolean;
 }
 
@@ -186,8 +155,6 @@ export interface LoginResponse {
   session: AuthSession;
   accessToken: string;
   refreshToken: string;
-  mfaRequired: boolean;
-  mfaEnrollmentId?: string;
   loginStatus: LoginStatus;
 }
 

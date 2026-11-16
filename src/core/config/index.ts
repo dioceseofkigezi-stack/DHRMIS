@@ -38,7 +38,6 @@ export const SERVICE_ROLE_ONLY_TABLES = [
   "user_scope_assignments",
   "break_glass_access",
   "delegated_access",
-  "user_mfa",
   "password_resets",
 ];
 

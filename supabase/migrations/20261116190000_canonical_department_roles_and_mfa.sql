@@ -1,4 +1,4 @@
--- Canonical DHRMIS access: two platform administrators and one scoped user per
+-- Canonical DHRMIS access: one platform administrator and one scoped user per
 -- top-level department. Employee identity and effective-dated assignments stay
 -- in the existing shared employee master.
 BEGIN;
@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS public.roles (
   scope_type TEXT NOT NULL CHECK (scope_type IN ('SYSTEM', 'PERSONNEL_DOMAIN')),
   scope_code TEXT,
   is_system_role BOOLEAN NOT NULL DEFAULT TRUE,
-  requires_mfa BOOLEAN NOT NULL DEFAULT TRUE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT roles_scope_definition_check CHECK (
@@ -19,8 +18,7 @@ CREATE TABLE IF NOT EXISTS public.roles (
 );
 
 INSERT INTO public.roles (role_code, role_name, scope_type, scope_code) VALUES
-  ('SUPER_ADMIN', 'Super Administrator', 'SYSTEM', NULL),
-  ('SYSTEM_ADMIN', 'System Administrator', 'SYSTEM', NULL),
+  ('SUPER_SYSTEM_ADMIN', 'Super System Administrator', 'SYSTEM', NULL),
   ('SECRETARIAT_USER', 'Secretariat / Main Office User', 'PERSONNEL_DOMAIN', 'SECRETARIAT'),
   ('MISSION_BOARD_USER', 'Mission Board User', 'PERSONNEL_DOMAIN', 'MISSION'),
   ('EDUCATION_BOARD_USER', 'Education Board User', 'PERSONNEL_DOMAIN', 'EDUCATION'),
@@ -32,8 +30,10 @@ ON CONFLICT (role_code) DO UPDATE SET
   role_name = EXCLUDED.role_name,
   scope_type = EXCLUDED.scope_type,
   scope_code = EXCLUDED.scope_code,
-  requires_mfa = TRUE,
   is_active = TRUE;
+UPDATE public.roles SET is_active = FALSE
+WHERE role_code IN ('SUPER_ADMIN', 'SYSTEM_ADMIN');
+ALTER TABLE public.roles DROP COLUMN IF EXISTS requires_mfa;
 UPDATE public.roles SET is_system_role = (scope_type = 'SYSTEM');
 
 CREATE TABLE IF NOT EXISTS public.permissions (
@@ -67,13 +67,9 @@ CREATE TABLE IF NOT EXISTS public.role_permissions (
 );
 
 INSERT INTO public.role_permissions (role_code, permission_code)
-SELECT 'SUPER_ADMIN', permission.permission_code FROM public.permissions AS permission
+SELECT 'SUPER_SYSTEM_ADMIN', permission.permission_code FROM public.permissions AS permission
 ON CONFLICT DO NOTHING;
-INSERT INTO public.role_permissions (role_code, permission_code) VALUES
-  ('SYSTEM_ADMIN', 'SYSTEM_TECHNICAL_ADMIN'),
-  ('SYSTEM_ADMIN', 'SECURITY_MONITORING'),
-  ('SYSTEM_ADMIN', 'AUDIT_OVERSIGHT')
-ON CONFLICT DO NOTHING;
+DELETE FROM public.role_permissions WHERE role_code IN ('SUPER_ADMIN', 'SYSTEM_ADMIN');
 INSERT INTO public.role_permissions (role_code, permission_code)
 SELECT role_definition.role_code, permission.permission_code
 FROM public.roles AS role_definition
@@ -141,25 +137,25 @@ GRANT SELECT ON public.roles, public.permissions, public.role_permissions, publi
 REVOKE INSERT, UPDATE, DELETE ON public.roles, public.permissions, public.role_permissions FROM PUBLIC, anon, authenticated;
 DROP POLICY IF EXISTS roles_read_active ON public.roles;
 CREATE POLICY roles_read_active ON public.roles FOR SELECT TO authenticated
-  USING (is_active IS TRUE AND public.current_user_mfa_satisfied());
+  USING (is_active IS TRUE AND auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS roles_manage_super_admin ON public.roles;
 CREATE POLICY roles_manage_super_admin ON public.roles FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]))
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 DROP POLICY IF EXISTS permissions_read_authenticated ON public.permissions;
 CREATE POLICY permissions_read_authenticated ON public.permissions FOR SELECT TO authenticated
-  USING (public.current_user_mfa_satisfied());
+  USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS permissions_manage_super_admin ON public.permissions;
 CREATE POLICY permissions_manage_super_admin ON public.permissions FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]))
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 DROP POLICY IF EXISTS role_permissions_read_authenticated ON public.role_permissions;
 CREATE POLICY role_permissions_read_authenticated ON public.role_permissions FOR SELECT TO authenticated
-  USING (public.current_user_mfa_satisfied());
+  USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS role_permissions_manage_super_admin ON public.role_permissions;
 CREATE POLICY role_permissions_manage_super_admin ON public.role_permissions FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]))
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 
 -- Convert prior user roles to the one-role model. Existing ambiguous Board HR
 -- accounts are mapped only when their assigned organizational scope identifies
@@ -205,16 +201,15 @@ WITH scoped_domains AS (
 ), role_map AS (
   SELECT assignment.id, assignment.role_code AS old_role_code,
     CASE assignment.role_code
-      WHEN 'SuperAdministrator' THEN 'SUPER_ADMIN'
-      WHEN 'SystemAdministrator' THEN 'SYSTEM_ADMIN'
+      WHEN 'SuperAdministrator' THEN 'SUPER_SYSTEM_ADMIN'
+      WHEN 'SystemAdministrator' THEN 'SUPER_SYSTEM_ADMIN'
       WHEN 'CentralHR' THEN 'SECRETARIAT_USER'
       WHEN 'ArchdeaconryAdmin' THEN 'SECRETARIAT_USER'
       WHEN 'ParishAdmin' THEN 'SECRETARIAT_USER'
       WHEN 'FinanceOfficer' THEN 'LAND_FINANCE_BOARD_USER'
       WHEN 'BoardHR' THEN primary_scope.role_code
       WHEN 'InstitutionAdmin' THEN primary_scope.role_code
-      WHEN 'SUPER_ADMIN' THEN 'SUPER_ADMIN'
-      WHEN 'SYSTEM_ADMIN' THEN 'SYSTEM_ADMIN'
+      WHEN 'SUPER_SYSTEM_ADMIN' THEN 'SUPER_SYSTEM_ADMIN'
       WHEN 'SECRETARIAT_USER' THEN 'SECRETARIAT_USER'
       WHEN 'MISSION_BOARD_USER' THEN 'MISSION_BOARD_USER'
       WHEN 'EDUCATION_BOARD_USER' THEN 'EDUCATION_BOARD_USER'
@@ -230,11 +225,12 @@ WITH scoped_domains AS (
 UPDATE public.user_roles AS assignment
 SET retired_role_code = CASE WHEN role_map.new_role_code IS NULL
     THEN COALESCE(assignment.retired_role_code, role_map.old_role_code)
+    WHEN role_map.old_role_code IN ('SuperAdministrator', 'SystemAdministrator', 'SUPER_ADMIN', 'SYSTEM_ADMIN')
+      THEN COALESCE(assignment.retired_role_code, role_map.old_role_code)
     ELSE assignment.retired_role_code END,
-    role_code = COALESCE(role_map.new_role_code, 'SYSTEM_ADMIN'),
+    role_code = COALESCE(role_map.new_role_code, 'SUPER_SYSTEM_ADMIN'),
     isactive = CASE WHEN role_map.new_role_code IS NULL THEN FALSE ELSE assignment.isactive END,
     issuspended = CASE WHEN role_map.new_role_code IS NULL THEN TRUE ELSE assignment.issuspended END,
-    ismfaenabled = TRUE,
     updatedat = clock_timestamp()
 FROM role_map
 WHERE assignment.id = role_map.id;
@@ -242,13 +238,15 @@ WHERE assignment.id = role_map.id;
 UPDATE public.user_roles
 SET isactive = COALESCE(isactive, FALSE) AND user_id IS NOT NULL,
     issuspended = COALESCE(issuspended, TRUE) OR user_id IS NULL,
-    ismfaenabled = TRUE,
     updatedat = clock_timestamp();
 
 WITH ranked_user_roles AS (
   SELECT id, ROW_NUMBER() OVER (
     PARTITION BY user_id
-    ORDER BY CASE role_code WHEN 'SUPER_ADMIN' THEN 1 WHEN 'SYSTEM_ADMIN' THEN 2 ELSE 3 END,
+    ORDER BY CASE retired_role_code
+      WHEN 'SUPER_ADMIN' THEN 1 WHEN 'SuperAdministrator' THEN 1
+      WHEN 'SYSTEM_ADMIN' THEN 2 WHEN 'SystemAdministrator' THEN 2
+      ELSE 3 END,
       createdat NULLS LAST, id
   ) AS rank
   FROM public.user_roles
@@ -259,7 +257,14 @@ FROM ranked_user_roles AS ranked
 WHERE assignment.id = ranked.id AND ranked.rank > 1;
 
 WITH ranked_role_slots AS (
-  SELECT id, ROW_NUMBER() OVER (PARTITION BY role_code ORDER BY createdat NULLS LAST, user_id, id) AS rank
+  SELECT id, ROW_NUMBER() OVER (
+    PARTITION BY role_code
+    ORDER BY CASE retired_role_code
+      WHEN 'SUPER_ADMIN' THEN 1 WHEN 'SuperAdministrator' THEN 1
+      WHEN 'SYSTEM_ADMIN' THEN 2 WHEN 'SystemAdministrator' THEN 2
+      ELSE 3 END,
+      createdat NULLS LAST, user_id, id
+  ) AS rank
   FROM public.user_roles
   WHERE isactive IS TRUE AND issuspended IS FALSE
 )
@@ -268,10 +273,11 @@ FROM ranked_role_slots AS ranked
 WHERE assignment.id = ranked.id AND ranked.rank > 1;
 
 ALTER TABLE public.user_roles ADD CONSTRAINT user_roles_role_code_check CHECK (role_code IN (
-  'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
+  'SUPER_SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
   'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER', 'LAND_FINANCE_BOARD_USER',
   'PLANNING_DEVELOPMENT_BOARD_USER', 'ICT_BOARD_USER'
 ));
+ALTER TABLE public.user_roles DROP CONSTRAINT IF EXISTS user_roles_role_catalog_fkey;
 ALTER TABLE public.user_roles ADD CONSTRAINT user_roles_role_catalog_fkey
   FOREIGN KEY (role_code) REFERENCES public.roles(role_code) ON UPDATE CASCADE;
 
@@ -399,9 +405,9 @@ CREATE TRIGGER user_roles_cleanup_designated_scope
 
 -- Refresh existing active account scopes through the same lifecycle used by
 -- account creation, replacement, suspension and role changes.
-UPDATE public.user_roles SET role_code = role_code, ismfaenabled = TRUE, updatedat = clock_timestamp();
+UPDATE public.user_roles SET role_code = role_code, updatedat = clock_timestamp();
 
-CREATE OR REPLACE FUNCTION public.current_user_mfa_satisfied()
+CREATE OR REPLACE FUNCTION public.current_user_session_is_active()
 RETURNS BOOLEAN
 LANGUAGE SQL
 STABLE
@@ -409,30 +415,13 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT auth.uid() IS NOT NULL
-    AND (
-      NOT EXISTS (
-        SELECT 1 FROM public.user_roles AS assignment
-        WHERE assignment.user_id = auth.uid()
-          AND assignment.isactive IS TRUE
-          AND assignment.issuspended IS FALSE
-          AND assignment.role_code IN (
-            'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
-            'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER', 'LAND_FINANCE_BOARD_USER',
-            'PLANNING_DEVELOPMENT_BOARD_USER', 'ICT_BOARD_USER'
-          )
-          AND (assignment.accountexpiry IS NULL OR assignment.accountexpiry > statement_timestamp())
-          AND (assignment.lockeduntil IS NULL OR assignment.lockeduntil <= statement_timestamp())
-      )
-      OR COALESCE(auth.jwt() ->> 'aal' = 'aal2', FALSE)
-    )
-    AND EXISTS (
+  SELECT auth.uid() IS NOT NULL AND EXISTS (
       SELECT 1 FROM public.user_sessions AS tracked_session
       WHERE tracked_session.user_id = auth.uid()
         AND tracked_session.auth_session_id = auth.jwt() ->> 'session_id'
         AND tracked_session.isactive IS TRUE
         AND tracked_session.expiresat > statement_timestamp()
-    );
+  );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.has_active_role(allowed_roles TEXT[])
@@ -444,7 +433,7 @@ SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
   SELECT auth.uid() IS NOT NULL
-    AND public.current_user_mfa_satisfied()
+    AND public.current_user_session_is_active()
     AND EXISTS (
       SELECT 1 FROM public.user_roles AS assignment
       WHERE assignment.user_id = auth.uid()
@@ -454,10 +443,8 @@ AS $function$
         AND (assignment.lockeduntil IS NULL OR assignment.lockeduntil <= statement_timestamp())
         AND (
           assignment.role_code = ANY (allowed_roles)
-          OR (assignment.role_code = 'SUPER_ADMIN' AND 'SuperAdministrator' = ANY (allowed_roles))
-          OR (assignment.role_code = 'SYSTEM_ADMIN'
-            AND 'SystemAdministrator' = ANY (allowed_roles)
-            AND allowed_roles <@ ARRAY['SuperAdministrator', 'SystemAdministrator']::TEXT[])
+          OR (assignment.role_code = 'SUPER_SYSTEM_ADMIN'
+            AND allowed_roles && ARRAY['SuperAdministrator', 'SystemAdministrator']::TEXT[])
           OR (assignment.role_code = 'SECRETARIAT_USER'
             AND allowed_roles && ARRAY['CentralHR', 'ArchdeaconryAdmin', 'ParishAdmin']::TEXT[])
           OR (assignment.role_code = 'MISSION_BOARD_USER'
@@ -484,10 +471,10 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT auth.uid() IS NOT NULL AND public.current_user_mfa_satisfied()
+  SELECT auth.uid() IS NOT NULL AND public.current_user_session_is_active()
     AND requested_scope_id IS NOT NULL
     AND (
-      public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+      public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
       OR EXISTS (
         SELECT 1
         FROM public.user_scopes AS assigned_scope
@@ -552,7 +539,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  SELECT public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_personnel_domain_scope(target_domain_id);
 $function$;
 
@@ -583,7 +570,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  SELECT public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_employee_scope(target_employee_id);
 $function$;
 
@@ -595,7 +582,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  SELECT public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR EXISTS (
       SELECT 1 FROM public.assignments AS assignment
       WHERE assignment.employee_id = target_employee_id
@@ -767,7 +754,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  SELECT public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.can_manage_employee(target_employee_id);
 $function$;
 
@@ -779,7 +766,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]);
+  SELECT public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]);
 $function$;
 
 CREATE OR REPLACE FUNCTION public.can_access_finance_employee(target_employee_id UUID)
@@ -790,7 +777,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  SELECT public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR (public.has_active_role(ARRAY['LAND_FINANCE_BOARD_USER']::TEXT[])
       AND public.can_access_employee(target_employee_id));
 $function$;
@@ -803,7 +790,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  SELECT public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR (public.has_active_role(ARRAY['LAND_FINANCE_BOARD_USER']::TEXT[])
       AND public.can_manage_employee(target_employee_id));
 $function$;
@@ -823,7 +810,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, auth
 SET row_security = off
 AS $function$
-  SELECT public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  SELECT public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('PersonnelDomain', target_domain_id)
     OR (target_domain_id IS NULL AND target_board_id IS NULL
       AND public.user_has_active_scope('Archdeaconry', target_archdeaconry_id))
@@ -849,7 +836,7 @@ AS $function$
     SELECT 1 FROM public.documents AS document
     WHERE document.id = target_document_id
       AND (
-        public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+        public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
         OR (document.employee_id IS NOT NULL AND public.can_access_employee(document.employee_id))
         OR (document.personnel_domain_id IS NOT NULL
           AND public.user_has_active_scope('PersonnelDomain', document.personnel_domain_id))
@@ -869,7 +856,7 @@ AS $function$
     SELECT 1 FROM public.documents AS document
     WHERE document.id = target_document_id
       AND (
-        public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+        public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
         OR (document.employee_id IS NOT NULL AND public.can_manage_employee(document.employee_id))
         OR (document.personnel_domain_id IS NOT NULL
           AND public.can_manage_personnel_domain(document.personnel_domain_id))
@@ -1103,45 +1090,45 @@ $directory_policies$;
 
 CREATE POLICY dioceses_read_authorized ON public.dioceses FOR SELECT TO authenticated
   USING (public.has_active_role(ARRAY[
-    'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
+    'SUPER_SYSTEM_ADMIN', 'SUPER_SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
     'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER', 'LAND_FINANCE_BOARD_USER',
     'PLANNING_DEVELOPMENT_BOARD_USER', 'ICT_BOARD_USER'
   ]::TEXT[]));
 CREATE POLICY dioceses_manage_super_admin ON public.dioceses FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]))
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 
 CREATE POLICY boards_read_scoped ON public.boards FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Board', id));
 CREATE POLICY boards_manage_super_admin ON public.boards FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]))
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 
 CREATE POLICY departments_read_scoped ON public.departments FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Department', id));
 CREATE POLICY departments_manage_scoped ON public.departments FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR (board_id IS NOT NULL AND public.user_has_active_scope('Board', board_id))
     OR (board_id IS NULL AND public.user_has_personnel_domain_scope(
       (SELECT domain.id FROM public.personnel_domains AS domain WHERE domain.is_secretariat IS TRUE))))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR (board_id IS NOT NULL AND public.user_has_active_scope('Board', board_id))
     OR (board_id IS NULL AND public.user_has_personnel_domain_scope(
       (SELECT domain.id FROM public.personnel_domains AS domain WHERE domain.is_secretariat IS TRUE))));
 
 CREATE POLICY institutions_read_scoped ON public.institutions FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Institution', id)
     OR public.user_has_active_scope('Department', department_id)
     OR public.user_has_active_scope('Board', board_id));
 CREATE POLICY institutions_manage_scoped ON public.institutions FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Institution', id)
     OR public.user_has_active_scope('Department', department_id)
     OR public.user_has_active_scope('Board', board_id))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR (board_id IS NOT NULL AND public.user_has_active_scope('Board', board_id))
     OR (department_id IS NOT NULL AND public.user_has_active_scope('Department', department_id))
     OR ((board_id IS NULL AND department_id IS NULL)
@@ -1150,66 +1137,66 @@ CREATE POLICY institutions_manage_scoped ON public.institutions FOR ALL TO authe
         (SELECT domain.id FROM public.personnel_domains AS domain WHERE domain.is_secretariat IS TRUE))));
 
 CREATE POLICY archdeaconries_read_scoped ON public.archdeaconries FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Archdeaconry', id));
 CREATE POLICY archdeaconries_manage_scoped ON public.archdeaconries FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_personnel_domain_scope(
       (SELECT domain.id FROM public.personnel_domains AS domain WHERE domain.is_secretariat IS TRUE)))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_personnel_domain_scope(
       (SELECT domain.id FROM public.personnel_domains AS domain WHERE domain.is_secretariat IS TRUE)));
 
 CREATE POLICY parishes_read_scoped ON public.parishes FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Parish', id));
 CREATE POLICY parishes_manage_scoped ON public.parishes FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_personnel_domain_scope(
       (SELECT domain.id FROM public.personnel_domains AS domain WHERE domain.is_secretariat IS TRUE)))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_personnel_domain_scope(
       (SELECT domain.id FROM public.personnel_domains AS domain WHERE domain.is_secretariat IS TRUE)));
 
 CREATE POLICY local_churches_read_scoped ON public.local_churches FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('LocalChurch', id));
 CREATE POLICY local_churches_manage_scoped ON public.local_churches FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_personnel_domain_scope(
       (SELECT domain.id FROM public.personnel_domains AS domain WHERE domain.is_secretariat IS TRUE)))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_personnel_domain_scope(
       (SELECT domain.id FROM public.personnel_domains AS domain WHERE domain.is_secretariat IS TRUE)));
 
 CREATE POLICY grades_read_scoped ON public.grades FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Department', department_id)
     OR public.user_has_active_scope('Board', board_id));
 CREATE POLICY grades_manage_scoped ON public.grades FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Department', department_id)
     OR public.user_has_active_scope('Board', board_id))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Department', department_id)
     OR public.user_has_active_scope('Board', board_id));
 
 CREATE POLICY positions_read_scoped ON public.positions FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Department', department_id)
     OR public.user_has_active_scope('Board', board_id));
 CREATE POLICY positions_manage_scoped ON public.positions FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Department', department_id)
     OR public.user_has_active_scope('Board', board_id))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('Department', department_id)
     OR public.user_has_active_scope('Board', board_id));
 
 DROP POLICY IF EXISTS personnel_domains_read_authorized ON public.personnel_domains;
 CREATE POLICY personnel_domains_read_authorized ON public.personnel_domains
   FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR public.user_has_active_scope('PersonnelDomain', id));
 
 DROP POLICY IF EXISTS employees_read_scoped ON public.employees;
@@ -1309,14 +1296,14 @@ CREATE POLICY documents_read_scoped ON public.documents FOR SELECT TO authentica
   USING (public.can_access_document(id));
 CREATE POLICY documents_insert_authorized ON public.documents FOR INSERT TO authenticated
   WITH CHECK (
-    public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+    public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR (employee_id IS NOT NULL AND public.can_manage_employee(employee_id))
     OR (employee_id IS NULL AND public.can_manage_personnel_domain(personnel_domain_id))
   );
 CREATE POLICY documents_update_authorized ON public.documents FOR UPDATE TO authenticated
   USING (public.can_access_document(id))
   WITH CHECK (
-    public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[])
+    public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     OR (employee_id IS NOT NULL AND public.can_manage_employee(employee_id))
     OR (employee_id IS NULL AND public.can_manage_personnel_domain(personnel_domain_id))
   );
@@ -1361,17 +1348,17 @@ CREATE POLICY hr_documents_storage_delete ON storage.objects FOR DELETE TO authe
 DROP POLICY IF EXISTS user_roles_manage_admin ON public.user_roles;
 DROP POLICY IF EXISTS user_roles_read_own_or_admin ON public.user_roles;
 CREATE POLICY user_roles_read_own_or_admin ON public.user_roles FOR SELECT TO authenticated
-  USING (user_id = auth.uid() OR public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (user_id = auth.uid() OR public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 CREATE POLICY user_roles_manage_admin ON public.user_roles FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]))
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 DROP POLICY IF EXISTS user_scopes_manage_admin ON public.user_scopes;
 DROP POLICY IF EXISTS user_scopes_read_own_or_admin ON public.user_scopes;
 CREATE POLICY user_scopes_read_own_or_admin ON public.user_scopes FOR SELECT TO authenticated
-  USING (user_id = auth.uid() OR public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (user_id = auth.uid() OR public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 CREATE POLICY user_scopes_manage_admin ON public.user_scopes FOR ALL TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]))
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 
 DROP POLICY IF EXISTS user_sessions_self_track_insert ON public.user_sessions;
 CREATE POLICY user_sessions_self_track_insert ON public.user_sessions FOR INSERT TO authenticated
@@ -1411,26 +1398,26 @@ END;
 $policies$;
 
 CREATE POLICY security_event_read_technical ON public.security_event FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN', 'SYSTEM_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 CREATE POLICY security_event_insert_own ON public.security_event FOR INSERT TO authenticated
   WITH CHECK (user_id = auth.uid() AND public.has_active_role(ARRAY[
-    'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
+    'SUPER_SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
     'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER', 'LAND_FINANCE_BOARD_USER',
     'PLANNING_DEVELOPMENT_BOARD_USER', 'ICT_BOARD_USER'
   ]::TEXT[]));
 CREATE POLICY security_event_update_technical ON public.security_event FOR UPDATE TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN', 'SYSTEM_ADMIN']::TEXT[]))
-  WITH CHECK (public.has_active_role(ARRAY['SUPER_ADMIN', 'SYSTEM_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]))
+  WITH CHECK (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 CREATE POLICY audit_log_read_super_admin ON public.audit_log FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 CREATE POLICY audit_log_read_system_technical ON public.audit_log FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SYSTEM_ADMIN']::TEXT[])
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[])
     AND module IN ('security_event', 'system_config', 'user_roles', 'user_scopes', 'auth'));
 CREATE POLICY sensitive_read_log_read_super_admin ON public.sensitive_read_log FOR SELECT TO authenticated
-  USING (public.has_active_role(ARRAY['SUPER_ADMIN']::TEXT[]));
+  USING (public.has_active_role(ARRAY['SUPER_SYSTEM_ADMIN']::TEXT[]));
 CREATE POLICY sensitive_read_log_insert_own ON public.sensitive_read_log FOR INSERT TO authenticated
   WITH CHECK (user_id = auth.uid() AND public.has_active_role(ARRAY[
-    'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
+    'SUPER_SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
     'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER', 'LAND_FINANCE_BOARD_USER',
     'PLANNING_DEVELOPMENT_BOARD_USER', 'ICT_BOARD_USER'
   ]::TEXT[]));
@@ -1438,29 +1425,29 @@ CREATE POLICY sensitive_read_log_insert_own ON public.sensitive_read_log FOR INS
 DROP POLICY IF EXISTS user_notifications_read_own ON public.user_notifications;
 DROP POLICY IF EXISTS user_notifications_mark_read_own ON public.user_notifications;
 CREATE POLICY user_notifications_read_own ON public.user_notifications FOR SELECT TO authenticated
-  USING (user_id = auth.uid() AND public.current_user_mfa_satisfied()
+  USING (user_id = auth.uid() AND public.current_user_session_is_active()
     AND public.has_active_role(ARRAY[
-      'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
+      'SUPER_SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
       'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER', 'LAND_FINANCE_BOARD_USER',
       'PLANNING_DEVELOPMENT_BOARD_USER', 'ICT_BOARD_USER'
     ]::TEXT[]));
 CREATE POLICY user_notifications_mark_read_own ON public.user_notifications FOR UPDATE TO authenticated
-  USING (user_id = auth.uid() AND public.current_user_mfa_satisfied()
+  USING (user_id = auth.uid() AND public.current_user_session_is_active()
     AND public.has_active_role(ARRAY[
-      'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
+      'SUPER_SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
       'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER', 'LAND_FINANCE_BOARD_USER',
       'PLANNING_DEVELOPMENT_BOARD_USER', 'ICT_BOARD_USER'
     ]::TEXT[]))
-  WITH CHECK (user_id = auth.uid() AND public.current_user_mfa_satisfied()
+  WITH CHECK (user_id = auth.uid() AND public.current_user_session_is_active()
     AND public.has_active_role(ARRAY[
-      'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
+      'SUPER_SYSTEM_ADMIN', 'SECRETARIAT_USER', 'MISSION_BOARD_USER',
       'EDUCATION_BOARD_USER', 'HEALTH_BOARD_USER', 'LAND_FINANCE_BOARD_USER',
       'PLANNING_DEVELOPMENT_BOARD_USER', 'ICT_BOARD_USER'
     ]::TEXT[]));
 
 REVOKE ALL ON FUNCTION public.sync_designated_user_scope() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.cleanup_designated_user_scope() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.current_user_mfa_satisfied() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.current_user_session_is_active() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.has_active_role(TEXT[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.user_has_active_scope(TEXT, UUID) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.user_has_personnel_domain_scope(UUID) FROM PUBLIC, anon;
@@ -1476,7 +1463,7 @@ REVOKE ALL ON FUNCTION public.can_access_employee_placement(UUID, UUID, UUID, UU
 REVOKE ALL ON FUNCTION public.can_access_document(UUID) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.can_manage_document(UUID) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.can_access_vacancy(UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.current_user_mfa_satisfied() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.current_user_session_is_active() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.has_active_role(TEXT[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.user_has_active_scope(TEXT, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.user_has_personnel_domain_scope(UUID) TO authenticated;

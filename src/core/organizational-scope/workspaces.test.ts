@@ -27,7 +27,7 @@ describe("personnel workspaces", () => {
     const ict = getWorkspace("ict")!;
     expect(canAccessWorkspace(ict, ["ICT_BOARD_USER"], ["ICT"])).toBe(true);
     expect(canManageWorkspacePersonnel(ict, ["ICT_BOARD_USER"])).toBe(true);
-    expect(canManageWorkspacePersonnel(ict, ["SYSTEM_ADMIN"])).toBe(false);
+    expect(canManageWorkspacePersonnel(ict, ["SUPER_SYSTEM_ADMIN"])).toBe(true);
   });
 
   it("keeps ecclesiastical navigation in the Secretariat workspace", () => {

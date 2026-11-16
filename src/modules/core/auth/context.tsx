@@ -180,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const domainCodes = domains.filter((domain) =>
         personnelDomainScopeIds.has(domain.id) || Boolean(domain.boardId && (boardScopeIds.has(domain.boardId) || legacyBoardIds.has(domain.boardId))),
       ).map((domain) => domain.code);
-      if (activeRoles.some((role) => role.role_code === "SUPER_ADMIN")) {
+      if (activeRoles.some((role) => role.role_code === "SUPER_SYSTEM_ADMIN")) {
         domainCodes.push(...domains.map((domain) => domain.code));
       }
       setWorkspaceDomainCodes([...new Set(domainCodes)]);

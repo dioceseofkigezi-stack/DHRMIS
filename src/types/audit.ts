@@ -72,7 +72,6 @@ export interface SecurityEvent {
     | "SUSPICIOUS_DOWNLOAD"
     | "EXTERNAL_IMPORT"
     | "PASSWORD_CHANGE"
-    | "MFA_DISABLED"
     | "SESSION_HIJACK_ATTEMPT"
     | "OTHER";
   severity: "Critical" | "High" | "Medium" | "Low" | "Informational";
