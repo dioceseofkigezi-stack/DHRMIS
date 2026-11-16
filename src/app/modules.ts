@@ -29,7 +29,7 @@ export interface ModuleConfig {
 const employeeFields: FieldConfig[] = [
   { name: "employee_id", label: "Employee ID", required: true },
   { name: "employee_number", label: "Employee number", required: true },
-  { name: "title", label: "Title", required: true, kind: "select", options: ["Mr", "Mrs", "Ms", "Dr", "Rev", "Bishop", "Father", "Deacon", "Other"] },
+  { name: "title", label: "Title", required: true, kind: "select", options: ["Mr", "Mrs", "Ms", "Dr", "Rev", "Rev Can.", "Eng", "Ven", "Rt Rev.", "Father", "Deacon", "Other"] },
   { name: "first_name", label: "First name", required: true },
   { name: "middle_name", label: "Middle name" },
   { name: "last_name", label: "Last name", required: true },
@@ -306,7 +306,7 @@ export const modulePages: ModuleConfig[] = [
     { name: "config_section", label: "Section", required: true }, { name: "description", label: "Description", kind: "textarea" },
     { name: "is_valid", label: "Valid", kind: "checkbox" },
   ] },
-  { path: "/admin/users", label: "User access", group: "Administration", description: "Assign roles and organizational scopes to provisioned accounts.", table: "user_roles", titleField: "role_code", columns: ["user_id", "role_code", "employee_id", "isActive", "isSuspended", "accountExpiry"], fields: [
+  { path: "/admin/users", label: "User registration & access", group: "Administration", description: "Invite users, assign system roles and review account access.", table: "user_roles", titleField: "role_code", columns: ["user_id", "role_code", "employee_id", "isactive", "issuspended", "accountexpiry"], fields: [
     { name: "user_id", label: "Existing account user ID", required: true },
     { name: "employee_id", label: "Linked employee record", kind: "employee" },
     { name: "role_code", label: "Role", kind: "select", required: true, options: [
@@ -317,10 +317,10 @@ export const modulePages: ModuleConfig[] = [
     ] },
     { name: "permissions", label: "Permissions (JSON array)", kind: "json", placeholder: "[]" },
     { name: "scopes", label: "Scopes (JSON array)", kind: "json", placeholder: "[]" },
-    { name: "isActive", label: "Active", kind: "checkbox" },
-    { name: "isSuspended", label: "Suspended", kind: "checkbox" },
-    { name: "accountExpiry", label: "Account expiry", kind: "date" },
-  ], defaultValues: { isActive: true, isSuspended: false, permissions: [], scopes: [] } },
+    { name: "isactive", label: "Active", kind: "checkbox" },
+    { name: "issuspended", label: "Suspended", kind: "checkbox" },
+    { name: "accountexpiry", label: "Account expiry", kind: "date" },
+  ], defaultValues: { isactive: true, issuspended: false, permissions: [], scopes: [] } },
   { path: "/admin/scopes", label: "User scopes", group: "Administration", description: "Assign temporary or permanent organizational scopes to provisioned accounts.", table: "user_scopes", titleField: "scope_name", columns: ["user_id", "scope_type", "scope_name", "expiresAt", "isActive"], fields: [
     { name: "user_id", label: "Account user ID", required: true },
     { name: "scope_id", label: "Organization record ID", required: true },

@@ -12,18 +12,11 @@ interface AuthContextValue {
   workspaceDomainCodes: string[];
   roleLoading: boolean;
   roleError: string;
-  mfaChallengeRequired: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const MFA_REQUIRED_ROLES = new Set([
-  "SuperAdministrator", "SystemAdministrator", "CentralHR", "BoardHR",
-  "ArchdeaconryAdmin", "ParishAdmin", "InstitutionAdmin", "FinanceOfficer",
-  "RegistryOfficer", "SafeguardingOfficer", "ICTAdministrator", "Auditor",
-]);
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(Boolean(supabase));
@@ -32,7 +25,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [workspaceDomainCodes, setWorkspaceDomainCodes] = useState<string[]>([]);
   const [roleLoading, setRoleLoading] = useState(Boolean(supabase));
   const [roleError, setRoleError] = useState("");
-  const [mfaChallengeRequired, setMfaChallengeRequired] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -68,20 +60,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setWorkspaceDomainCodes([]);
       if (!session || !supabase) {
         setRoleLoading(false);
-        setMfaChallengeRequired(false);
         return;
       }
 
       setRoleLoading(true);
       const { data, error } = await supabase
         .from("user_roles")
-        .select("role_code, isactive, issuspended, ismfaenabled, accountexpiry, lockeduntil")
+        .select("role_code, isactive, issuspended, accountexpiry, lockeduntil")
         .eq("user_id", session.user.id);
 
       if (!active) return;
       if (error) {
         setRoleError("Unable to load your system roles.");
-        setMfaChallengeRequired(false);
         setRoleLoading(false);
         return;
       }
@@ -106,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!active) return;
       if (scopeError || domainError) {
         setRoleError("Unable to load your organizational access scopes.");
-        setMfaChallengeRequired(false);
         setRoleLoading(false);
         return;
       }
@@ -141,7 +130,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!active) return;
         if (departmentResult.error || institutionResult.error) {
           setRoleError("Unable to load your organizational access scopes.");
-          setMfaChallengeRequired(false);
           setRoleLoading(false);
           return;
         }
@@ -162,16 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setWorkspaceDomainCodes([...new Set(domainCodes)]);
 
-      const requiresMfa = activeRoles.some((role) =>
-        role.isMfaEnabled === true || MFA_REQUIRED_ROLES.has(role.role_code),
-      );
-      if (requiresMfa) {
-        const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (!active) return;
-        setMfaChallengeRequired(assuranceError ? true : assurance.currentLevel !== "aal2");
-      } else {
-        setMfaChallengeRequired(false);
-      }
       setRoleLoading(false);
     }
 
@@ -187,7 +165,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     workspaceDomainCodes,
     roleLoading,
     roleError,
-    mfaChallengeRequired,
     signIn: async (email, password) => {
       if (!supabase) throw new Error("Supabase is not configured. Add VITE_SUPABASE_URL and a publishable or anon client key to .env.");
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -198,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     },
-  }), [session, loading, roles, personnelDomains, workspaceDomainCodes, roleLoading, roleError, mfaChallengeRequired]);
+  }), [session, loading, roles, personnelDomains, workspaceDomainCodes, roleLoading, roleError]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

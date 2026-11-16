@@ -28,7 +28,10 @@ export type EmployeeTitle =
   | "Ms"
   | "Dr"
   | "Rev"
-  | "Bishop"
+  | "Rev Can."
+  | "Eng"
+  | "Ven"
+  | "Rt Rev."
   | "Father"
   | "Deacon"
   | "Other";

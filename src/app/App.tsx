@@ -21,7 +21,7 @@ function LoadingPage() {
 }
 
 export default function App() {
-  const { session, loading, roles, workspaceDomainCodes, roleLoading, roleError, mfaChallengeRequired, signOut } = useAuth();
+  const { session, loading, roles, workspaceDomainCodes, roleLoading, roleError, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const showToast = useToast();
@@ -32,7 +32,6 @@ export default function App() {
   if (loading) return <LoadingPage />;
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (roleLoading) return <LoadingPage />;
-  if (mfaChallengeRequired && location.pathname !== "/login") return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (location.pathname === "/") return <Navigate to="/dashboard" replace />;
 
   const activePage = modulePages.find((page) => page.path === location.pathname);
@@ -84,6 +83,14 @@ export default function App() {
             {workspaceNav.map((item) => (
               <NavLink key={`${selectedWorkspace.slug}-${item.path}`} to={workspacePath(item.path, selectedWorkspace.slug)} onClick={() => setSidebarOpen(false)} className={({ isActive }) => `nav-link${isActive ? " nav-link-active" : ""}`}>
                 <span className="nav-icon"><Icon name={getPathIcon(item.path)} size={15} /></span><span>{item.label}</span>
+              </NavLink>
+            ))}
+          </div>}
+          {availableWorkspaces.length > 0 && visiblePages.some((page) => page.group === "Administration") && <div className="nav-group">
+            <div className="nav-caption">ADMINISTRATION</div>
+            {visiblePages.filter((page) => page.group === "Administration").map((page) => (
+              <NavLink key={page.path} to={page.path} onClick={() => setSidebarOpen(false)} className={({ isActive }) => `nav-link${isActive ? " nav-link-active" : ""}`}>
+                <span className="nav-icon"><Icon name={getPathIcon(page.path)} size={15} /></span><span>{page.label}</span>
               </NavLink>
             ))}
           </div>}

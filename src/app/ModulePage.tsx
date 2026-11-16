@@ -11,6 +11,7 @@ import { useToast } from "@/core/notifications/ToastProvider";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useAuth } from "@/modules/core/auth/context";
 import { getWorkspaceDomain, getWorkspaceFromPath, workspacePath } from "@/core/organizational-scope/workspaces";
+import UserRegistrationPanel from "@/modules/admin/UserRegistrationPanel";
 
 type Row = Record<string, unknown> & { id: string };
 type FormValues = Record<string, unknown>;
@@ -385,8 +386,9 @@ export default function ModulePage() {
       {hasAccess && <>
         <header className="page-heading">
           <div><p className="eyebrow">{pageConfig.group.toUpperCase()}</p><h1><Icon name={getPathIcon(pageConfig.path)} size={23} />{pageConfig.label}</h1><p className="muted">{pageConfig.description}</p></div>
-          {canEdit && <button className="button button-primary" onClick={openCreate} disabled={!online}><Icon name="plus" size={15} />New record</button>}
+          {canEdit && <button className="button button-primary" onClick={openCreate} disabled={!online}><Icon name="plus" size={15} />{pageConfig.path === "/admin/users" ? "Assign a role" : "New record"}</button>}
         </header>
+        {pageConfig.path === "/admin/users" && <UserRegistrationPanel online={online} />}
         {!supabase && <div className="notice notice-warning">The Supabase data service is not configured. Contact your administrator.</div>}
         {!online && <div className="notice notice-warning" role="status">You are offline. Confidential edits are not stored for later synchronization.</div>}
         {error && <div className="notice notice-error" role="alert">{error}<button className="notice-dismiss" onClick={() => setError("")} aria-label="Dismiss error"><Icon name="close" size={16} /></button></div>}
