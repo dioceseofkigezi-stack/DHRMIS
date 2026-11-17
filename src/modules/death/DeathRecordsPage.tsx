@@ -98,6 +98,7 @@ export default function DeathRecordsPage() {
         record_type: "employee_death_records",
         data_category: "CAUSE_OF_DEATH",
         purpose: "Viewed death verification records",
+        accessed_fields: RECORD_COLUMNS.split(","),
       })));
       if (auditError) {
         setRows([]);

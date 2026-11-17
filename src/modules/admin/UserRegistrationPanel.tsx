@@ -39,14 +39,28 @@ export default function UserRegistrationPanel({ online, onSuccess }: { online: b
       });
       if (inviteError) {
         let message = "The invitation could not be sent. Check the details and try again.";
+        if ("name" in inviteError && inviteError.name === "FunctionsFetchError") {
+          message = "The invitation service could not be reached. Check your connection and confirm the register-user Edge Function is deployed.";
+        } else if ("name" in inviteError && inviteError.name === "FunctionsRelayError") {
+          message = "Supabase could not start the invitation function. Check the register-user Edge Function deployment and logs.";
+        }
         if ("context" in inviteError && inviteError.context instanceof Response) {
           try {
-            const payload: unknown = await inviteError.context.clone().json();
+            const response = inviteError.context.clone();
+            const responseText = await response.text();
+            let payload: unknown;
+            try { payload = JSON.parse(responseText) as unknown; } catch { payload = null; }
             if (payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string") {
               message = payload.message;
+            } else if (response.status === 404) {
+              message = "The register-user Edge Function was not found. Deploy it to the configured Supabase project and try again.";
+            } else if (response.status >= 500) {
+              message = `The invitation function failed (HTTP ${response.status}). Check its Supabase logs for the cause.`;
+            } else {
+              message = `The invitation function rejected the request (HTTP ${response.status}). Check your session and registration details.`;
             }
           } catch {
-            // Keep the safe fallback when the response is not JSON.
+            // Keep the most actionable error found when the response cannot be read.
           }
         }
         throw new Error(message);

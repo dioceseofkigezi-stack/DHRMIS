@@ -484,6 +484,22 @@ tbody tr:hover { background: #fbfcfb; }
 .admin-log-tab:hover { color: #3e604b; background: #f8fbf8; }
 .admin-log-tab-active { border-bottom-color: #54775e; color: #3e604b; }
 .admin-event-description { min-width: 180px; line-height: 1.5; }
+.admin-audit-expand-row > td { max-width: none; padding: 0 !important; border-bottom: 1px solid #eef2ef; background: #fbfdfb; }
+.admin-audit-details > summary { padding: 9px 11px; color: #496d58; font-size: 12px; font-weight: 600; cursor: pointer; }
+.admin-audit-details > summary:hover { color: #2e573b; background: #f2f7f3; }
+.admin-audit-detail-content { display: grid; gap: 12px; padding: 12px 14px 16px; border-top: 1px solid #e8eee9; }
+.admin-audit-detail-content h3 { margin: 0; color: #394b40; font-size: 13px; }
+.admin-audit-change-table-wrap { max-height: 360px; overflow: auto; border: 1px solid #e6ece8; border-radius: 8px; }
+.admin-audit-change-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.admin-audit-change-table th, .admin-audit-change-table td { padding: 8px 10px; border-bottom: 1px solid #e8eee9; text-align: left; vertical-align: top; }
+.admin-audit-change-table thead th { position: sticky; top: 0; color: #65756b; background: #f6f9f7; font-weight: 700; }
+.admin-audit-change-table th:first-child { width: 20%; }
+.admin-audit-change-table tbody th { color: #45574b; font-weight: 600; overflow-wrap: anywhere; }
+.admin-audit-change-table td pre { max-height: 180px; margin: 0; overflow: auto; color: #56665b; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-audit-no-fields { margin: 0; color: #78857d; font-size: 12px; line-height: 1.5; }
+.admin-audit-metadata { display: grid; grid-template-columns: minmax(125px, max-content) minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 12px; }
+.admin-audit-metadata dt { color: #78857d; }
+.admin-audit-metadata dd { min-width: 0; margin: 0; color: #526157; overflow-wrap: anywhere; }
 .admin-role-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; padding: 14px; }
 .admin-role-card { min-width: 0; padding: 14px; border: 1px solid #e7ece8; border-radius: 10px; background: #fff; }
 .admin-role-card-platform { border-color: #cfd9d2; background: linear-gradient(145deg, #fbfdfb, #f5f8f6); }
@@ -645,9 +661,16 @@ tbody tr:hover { background: #fbfcfb; }
 :root[data-theme="dark"] .admin-data-table th,
 :root[data-theme="dark"] .admin-data-table td,
 :root[data-theme="dark"] .admin-log-tabs,
+:root[data-theme="dark"] .admin-audit-expand-row > td,
+:root[data-theme="dark"] .admin-audit-change-table-wrap,
+:root[data-theme="dark"] .admin-audit-change-table th,
+:root[data-theme="dark"] .admin-audit-change-table td,
 :root[data-theme="dark"] .admin-role-card footer { border-color: var(--border); }
 :root[data-theme="dark"] th,
 :root[data-theme="dark"] .admin-data-table th { background: #101015; }
+:root[data-theme="dark"] .admin-audit-expand-row > td { background: #111218; }
+:root[data-theme="dark"] .admin-audit-details > summary:hover { background: #1b2020; }
+:root[data-theme="dark"] .admin-audit-change-table thead th { background: #191c20; }
 :root[data-theme="dark"] tbody tr:hover,
 :root[data-theme="dark"] .quick-link:hover,
 :root[data-theme="dark"] .search-result:hover,
@@ -713,4 +736,6 @@ tbody tr:hover { background: #fbfcfb; }
 
 @media (max-width: 760px) {
   .login-theme-control { top: 12px; right: 12px; }
+  .admin-audit-change-table { min-width: 640px; }
+  .admin-audit-metadata { grid-template-columns: minmax(100px, max-content) minmax(0, 1fr); }
 }

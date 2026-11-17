@@ -86,6 +86,7 @@ export default function DocumentManagerPage() {
         record_type: "documents",
         data_category: "CONFIDENTIAL_DOCUMENT",
         purpose: "Viewed the document registry",
+        accessed_fields: ["original_file_name", "document_type", "file_size", "mime_type", "storage_path", "access_level", "created_at", "expires_at", "version"],
       })));
       if (auditError) {
         setError("Documents were not displayed because the access log could not be written.");
@@ -170,6 +171,7 @@ export default function DocumentManagerPage() {
         recordType: "documents",
         dataCategory: "CONFIDENTIAL_DOCUMENT",
         purpose: "Downloaded a document from the registry",
+        accessedFields: ["document_file"],
       });
       const signedUrl = await createDocumentDownloadUrl(record.storage_path, record.original_file_name);
       const anchor = document.createElement("a");

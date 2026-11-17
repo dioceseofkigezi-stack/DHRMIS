@@ -47,6 +47,7 @@ export const auditService = {
     recordType,
     dataCategory,
     purpose,
+    accessedFields,
     scopeIds,
     sessionId,
     ipAddress,
@@ -58,6 +59,7 @@ export const auditService = {
     recordType: string;
     dataCategory: SensitiveReadLog["dataCategory"];
     purpose: string;
+    accessedFields?: string[];
     scopeIds?: string[];
     sessionId?: string;
     ipAddress?: string;
@@ -77,6 +79,7 @@ export const auditService = {
       record_type: recordType,
       data_category: dataCategory,
       purpose,
+      accessed_fields: accessedFields ?? [],
       scope_ids: scopeIds,
       session_id: sessionId,
       ip_address: ipAddress,

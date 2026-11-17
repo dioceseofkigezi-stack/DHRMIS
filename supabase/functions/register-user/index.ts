@@ -19,6 +19,27 @@ function respond(status: number, body: Record<string, unknown>) {
   });
 }
 
+function invitationFailure(error: { code?: string; status?: number; message?: string }) {
+  const detail = (error.message ?? "").toLowerCase();
+  const reference = error.code ? ` Reference: ${error.code}.` : "";
+  if (detail.includes("already") || detail.includes("registered") || detail.includes("exists")) {
+    return respond(409, { message: "An account with this email already exists. Use User access to assign another role." });
+  }
+  if (detail.includes("invalid email") || detail.includes("email is invalid")) {
+    return respond(400, { message: "Supabase Auth rejected this email address. Check the address and try again." });
+  }
+  if (error.status === 429 || detail.includes("rate limit") || detail.includes("too many")) {
+    return respond(429, { message: "The invitation email limit has been reached. Wait a while and try again." });
+  }
+  if (detail.includes("redirect") || detail.includes("allow list") || detail.includes("allowlist")) {
+    return respond(502, { message: "The invitation link destination is not allowed. Add this application URL to the Supabase Auth redirect allow list." });
+  }
+  if (detail.includes("smtp") || detail.includes("mail") || detail.includes("send email") || detail.includes("sending email") || detail.includes("invite email")) {
+    return respond(502, { message: "Supabase Auth could not deliver the invitation email. Check the project's SMTP and email template settings, then try again." });
+  }
+  return respond(502, { message: `Supabase Auth rejected the invitation. Check the project's Auth logs and email settings.${reference}` });
+}
+
 function isCurrentActiveSuperAdmin(role: Record<string, unknown>) {
   const active = role.isActive ?? role.isactive;
   const suspended = role.isSuspended ?? role.issuspended;
@@ -106,16 +127,28 @@ Deno.serve(async (request: Request) => {
   }
   if (!roleCodes.has(roleCode)) return respond(400, { message: "Select a valid system role." });
 
-  const { data: invitation, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: fullName },
-  });
-  const invitedUser = invitation.user;
-  if (inviteError || !invitedUser) {
-    const detail = inviteError?.message.toLowerCase() ?? "";
-    if (detail.includes("already") || detail.includes("registered") || detail.includes("exists")) {
-      return respond(409, { message: "An account with this email already exists. Use User access to assign another role." });
-    }
-    return respond(502, { message: "The invitation email could not be sent. Check the project email settings and try again." });
+  let invitationResult: Awaited<ReturnType<typeof adminClient.auth.admin.inviteUserByEmail>> | null = null;
+  try {
+    invitationResult = await adminClient.auth.admin.inviteUserByEmail(email, {
+      data: { full_name: fullName },
+    });
+  } catch (reason) {
+    console.error("register-user: Supabase Auth invitation request failed", reason);
+    return respond(502, { message: "The invitation service could not reach Supabase Auth. Check the Edge Function logs and try again." });
+  }
+  if (!invitationResult) {
+    return respond(502, { message: "The invitation service did not return a result. Check the Edge Function logs and try again." });
+  }
+  const invitedUser = invitationResult.data?.user;
+  if (invitationResult.error || !invitedUser) {
+    if (invitationResult.error) console.error("register-user: Supabase Auth rejected an invitation", {
+      code: invitationResult.error.code,
+      status: invitationResult.error.status,
+      message: invitationResult.error.message,
+    });
+    return invitationResult.error
+      ? invitationFailure(invitationResult.error)
+      : respond(502, { message: "Supabase Auth did not return the invited account. Check the Edge Function logs and Auth settings." });
   }
 
   const { data: assignment, error: assignmentError } = await adminClient.from("user_roles").insert({

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { canAccessModule } from "@/app/modules";
 import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
@@ -12,13 +12,22 @@ interface AuditRow {
   user_name: string | null;
   user_id: string | null;
   record_id?: string | null;
+  employee_id?: string | null;
+  session_id?: string | null;
+  scope_ids?: unknown;
+  ip_address?: string | null;
+  device_info?: string | null;
+  user_agent?: string | null;
   action?: string;
   module?: string | null;
   record_type: string | null;
   result?: string | null;
   purpose: string | null;
   context?: string | null;
+  before_values?: unknown;
+  after_values?: unknown;
   data_category?: string;
+  accessed_fields?: unknown;
 }
 
 function safeEndDate(value: string) {
@@ -26,6 +35,128 @@ function safeEndDate(value: string) {
   const end = new Date(`${value}T00:00:00`);
   end.setDate(end.getDate() + 1);
   return end.toISOString();
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function valuesFromAuditSnapshot(value: unknown): Record<string, unknown> {
+  const snapshot = asObject(value);
+  if (snapshot.values && typeof snapshot.values === "object" && !Array.isArray(snapshot.values)) {
+    return snapshot.values as Record<string, unknown>;
+  }
+  return Object.fromEntries(Object.entries(snapshot).filter(([key]) => key !== "changed_fields"));
+}
+
+function fieldsFromAuditRow(row: AuditRow, before: Record<string, unknown>, after: Record<string, unknown>) {
+  const beforeFields = asObject(row.before_values).changed_fields;
+  const afterFields = asObject(row.after_values).changed_fields;
+  const recordedFields = [beforeFields, afterFields]
+    .filter(Array.isArray)
+    .flatMap((fields) => fields.filter((field): field is string => typeof field === "string"));
+  return [...new Set(recordedFields.length ? recordedFields : [...Object.keys(before), ...Object.keys(after)])].sort();
+}
+
+function isSensitiveField(field: string) {
+  const normalized = field.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return ["nin", "ninnumber"].includes(normalized) || /(password|passwd|secret|token|credential|apikey|accesskey|privatekey|nationalid|bank|accountnumber|accountno|routingnumber|iban|swift|sortcode|dateofbirth|medical|diagnos|health|safeguard|disciplin|children|child|spouse|nextofkin|phone|mobile|telephone|email|address|filepath|storagepath|objectkey)/.test(normalized);
+}
+
+function formatAuditValue(value: unknown) {
+  if (value === undefined) return "Not recorded";
+  if (value === null || value === "") return "Empty";
+  if (value === "[REDACTED]") return "Redacted for privacy";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") return JSON.stringify(value, null, 2) || "Empty";
+  return String(value);
+}
+
+function formatAuditField(field: string) {
+  return field
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+    .replace(/\bId\b/g, "ID")
+    .replace(/\bUuid\b/g, "UUID")
+    .replace(/\bIp\b/g, "IP");
+}
+
+function auditActionLabel(action: string | undefined) {
+  switch (action) {
+    case "CREATED": return "Created";
+    case "UPDATE": return "Updated";
+    case "DELETE_REQUEST": return "Deleted";
+    case "USER_ACCOUNT_UPDATED": return "Updated user account";
+    default: return action ? formatAuditField(action) : "Activity";
+  }
+}
+
+function sensitiveActionLabel(purpose: string | null | undefined) {
+  if (/\bdownload(ed)?\b/i.test(purpose ?? "")) return "Downloaded record";
+  if (/\bexport(ed)?\b/i.test(purpose ?? "")) return "Exported record";
+  return "Viewed record";
+}
+
+function displayValue(field: string, value: unknown, side: "before" | "after", row: AuditRow) {
+  if (value === undefined && side === "before" && row.action === "CREATED") return "Not present before creation";
+  if (value === undefined && side === "after" && row.action === "DELETE_REQUEST") return "Record deleted";
+  if (value === undefined) return "Not recorded";
+  if (isSensitiveField(field)) return "Redacted for privacy";
+  return formatAuditValue(value);
+}
+
+function AuditEventDetails({ row, source }: { row: AuditRow; source: LogSource }) {
+  const before = valuesFromAuditSnapshot(row.before_values);
+  const after = valuesFromAuditSnapshot(row.after_values);
+  const fields = fieldsFromAuditRow(row, before, after);
+  const accessedFields = Array.isArray(row.accessed_fields)
+    ? row.accessed_fields.filter((field): field is string => typeof field === "string").map(formatAuditField)
+    : [];
+  const sourceLabel = source === "audit" ? "System change" : "Sensitive record access";
+  const details: Array<[string, unknown]> = [
+    ["Event ID", row.id],
+    ["User ID", row.user_id],
+    ["Record type", row.record_type],
+    ["Record ID", row.record_id],
+    ["Related employee ID", row.employee_id],
+    ["Session ID", row.session_id],
+    ["IP address", row.ip_address],
+    ["Device", row.device_info],
+    ["Browser / client", row.user_agent],
+    ["Data category", row.data_category],
+    ["Accessed fields", accessedFields.length ? accessedFields.join(", ") : "Not recorded for this event"],
+    ["Scopes", row.scope_ids],
+    ["Purpose", row.purpose],
+    ["Context", row.context],
+      ].filter(([, value]) => value !== null && value !== undefined && value !== "");
+
+  return <details className="admin-audit-details">
+    <summary>View detailed event</summary>
+    <div className="admin-audit-detail-content">
+      {source === "audit" ? <>
+        <h3>{auditActionLabel(row.action)} {formatAuditField(row.record_type || row.module || "record").toLowerCase()}</h3>
+        {fields.length ? <div className="admin-audit-change-table-wrap"><table className="admin-audit-change-table">
+          <thead><tr><th>Field changed</th><th>Before</th><th>After</th></tr></thead>
+          <tbody>{fields.map((field) => <tr key={field}>
+            <th scope="row">{formatAuditField(field)}</th>
+            <td><pre>{displayValue(field, before[field], "before", row)}</pre></td>
+            <td><pre>{displayValue(field, after[field], "after", row)}</pre></td>
+          </tr>)}</tbody>
+        </table></div> : <p className="admin-audit-no-fields">Field-level values were not recorded for this event.</p>}
+      </> : <>
+        <h3>{sourceLabel}</h3>
+        <p className="admin-audit-no-fields">{accessedFields.length
+          ? "The field names below show which data was made available in this view, export, or download. Field values are not copied into the sensitive-read log."
+          : "This older entry does not include the field list. New entries record which field names were made available, without copying field values."}</p>
+      </>}
+      <dl className="admin-audit-metadata">{details.map(([label, value]) => <Fragment key={label}>
+        <dt>{label}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd>
+      </Fragment>)}</dl>
+    </div>
+  </details>;
 }
 
 export default function AdminAuditPage() {
@@ -55,14 +186,14 @@ export default function AdminAuditPage() {
     setError("");
     const safeSearch = debouncedSearch.replace(/[^a-zA-Z0-9@._ -]/g, "");
     let query = source === "audit"
-      ? supabase.from("audit_log").select("id,created_at,user_name,user_id,action,module,record_type,result,purpose,context", { count: "exact" }).order("created_at", { ascending: false })
-      : supabase.from("sensitive_read_log").select("id,timestamp,user_name,user_id,record_id,record_type,data_category,purpose", { count: "exact" }).order("timestamp", { ascending: false });
+      ? supabase.from("audit_log").select("id,created_at,user_name,user_id,action,module,record_id,employee_id,record_type,result,purpose,context,before_values,after_values,session_id,scope_ids,ip_address,device_info,user_agent", { count: "exact" }).order("created_at", { ascending: false })
+      : supabase.from("sensitive_read_log").select("id,timestamp,user_name,user_id,record_id,employee_id,record_type,data_category,purpose,accessed_fields,scope_ids,session_id,ip_address,device_info", { count: "exact" }).order("timestamp", { ascending: false });
     const dateColumn = source === "audit" ? "created_at" : "timestamp";
     if (fromDate) query = query.gte(dateColumn, new Date(`${fromDate}T00:00:00`).toISOString());
     if (toDate) query = query.lt(dateColumn, safeEndDate(toDate));
     if (safeSearch) {
       query = source === "audit"
-        ? query.or(`user_name.ilike.%${safeSearch}%,action.ilike.%${safeSearch}%,module.ilike.%${safeSearch}%,record_type.ilike.%${safeSearch}%,purpose.ilike.%${safeSearch}%`)
+        ? query.or(`user_name.ilike.%${safeSearch}%,action.ilike.%${safeSearch}%,module.ilike.%${safeSearch}%,record_type.ilike.%${safeSearch}%,purpose.ilike.%${safeSearch}%,context.ilike.%${safeSearch}%`)
         : query.or(`user_name.ilike.%${safeSearch}%,record_type.ilike.%${safeSearch}%,data_category.ilike.%${safeSearch}%,purpose.ilike.%${safeSearch}%`);
     }
     const { data, count, error: queryError } = await query.range(page * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE + ADMIN_PAGE_SIZE - 1);
@@ -97,13 +228,28 @@ export default function AdminAuditPage() {
       </div>
       {loading ? <div className="admin-table-state" role="status"><span className="loading-spinner" />Loading {source === "audit" ? "audit activity" : "sensitive-read records"}…</div>
         : rows.length === 0 ? <div className="admin-table-state"><strong>No matching log records</strong></div>
-          : <div className="table-scroll"><table className="admin-data-table"><thead>{source === "audit" ? <tr><th>Time</th><th>User</th><th>Action</th><th>Module</th><th>Record type</th><th>Result</th><th>Purpose / context</th></tr> : <tr><th>Time</th><th>User</th><th>Data category</th><th>Record type</th><th>Record ID</th><th>Purpose</th></tr>}</thead><tbody>{rows.map((row) => {
+          : <div className="table-scroll"><table className="admin-data-table"><thead>{source === "audit" ? <tr><th>Time</th><th>User</th><th>Action</th><th>Module</th><th>Record</th><th>Result</th><th>Details</th></tr> : <tr><th>Time</th><th>User</th><th>Data category</th><th>Record type</th><th>Record ID</th><th>Purpose</th><th>Details</th></tr>}</thead><tbody>{rows.map((row) => {
             const time = row.created_at || row.timestamp;
-            return source === "audit" ? <tr key={row.id}>
-              <td>{formatAdminDate(time)}</td><td><strong>{row.user_name || "Unknown user"}</strong><small>{row.user_id || "No user ID"}</small></td><td>{row.action || "—"}</td><td>{row.module || "System"}</td><td>{row.record_type || "—"}</td><td><AdminStatus tone={row.result === "Success" ? "success" : row.result === "Failure" ? "danger" : "warning"}>{row.result || "Unknown"}</AdminStatus></td><td className="admin-event-description">{row.purpose || row.context || "—"}</td>
-            </tr> : <tr key={row.id}>
-              <td>{formatAdminDate(time)}</td><td><strong>{row.user_name || "Unknown user"}</strong><small>{row.user_id || "No user ID"}</small></td><td><AdminStatus tone="warning">{row.data_category || "Sensitive"}</AdminStatus></td><td>{row.record_type || "—"}</td><td><code>{row.record_id || "—"}</code></td><td>{row.purpose || "Not provided"}</td>
-            </tr>;
+            return <Fragment key={row.id}>
+              {source === "audit" ? <tr>
+                <td>{formatAdminDate(time)}</td>
+                <td><strong>{row.user_name || "Unknown user"}</strong><small>{row.user_id || "No user ID"}</small></td>
+                <td>{auditActionLabel(row.action)}</td>
+                <td>{row.module ? formatAuditField(row.module) : "System"}</td>
+                <td><strong>{row.record_type ? formatAuditField(row.record_type) : "—"}</strong><small>{row.record_id || "No record ID"}</small></td>
+                <td><AdminStatus tone={row.result === "Success" ? "success" : row.result === "Failure" ? "danger" : "warning"}>{row.result || "Unknown"}</AdminStatus></td>
+                <td>{row.purpose || row.context || "—"}</td>
+              </tr> : <tr>
+                <td>{formatAdminDate(time)}</td>
+                <td><strong>{row.user_name || "Unknown user"}</strong><small>{row.user_id || "No user ID"}</small></td>
+                <td><AdminStatus tone="warning">{row.data_category || "Sensitive"}</AdminStatus></td>
+                <td>{row.record_type ? formatAuditField(row.record_type) : "—"}</td>
+                <td><code>{row.record_id || "—"}</code></td>
+                <td>{row.purpose || "Not provided"}</td>
+                <td>{sensitiveActionLabel(row.purpose)}</td>
+              </tr>}
+              <tr className="admin-audit-expand-row"><td colSpan={7}><AuditEventDetails row={row} source={source} /></td></tr>
+            </Fragment>;
           })}</tbody></table></div>}
       {!loading && <AdminPagination page={page} total={total} onPage={setPage} />}
     </section>

@@ -190,6 +190,7 @@ export default function ModulePage() {
           record_type: config.table,
           data_category: config.readAuditCategory,
           purpose: `Viewed ${config.label}`,
+          accessed_fields: selectedColumns,
         })));
         if (auditError) throw new Error("Sensitive access could not be recorded.");
       }
@@ -278,6 +279,7 @@ export default function ModulePage() {
         record_type: "documents",
         data_category: "CONFIDENTIAL_DOCUMENT",
         purpose: "Viewed document choices for an assignment",
+        accessed_fields: source.columns.split(",").map((column) => column.trim()).filter(Boolean),
       })));
       if (auditError) throw new Error("Document choices could not be displayed because the access log could not be written.");
     }
@@ -468,6 +470,7 @@ export default function ModulePage() {
           record_type: pageConfig.table,
           data_category: pageConfig.readAuditCategory,
           purpose: `Exported current page from ${pageConfig.label}`,
+          accessed_fields: columns.map((column) => column.key),
         })));
         if (auditError) throw new Error("Export was not started because the access record could not be written.");
       }

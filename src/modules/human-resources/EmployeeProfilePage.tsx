@@ -139,19 +139,22 @@ export default function EmployeeProfilePage({ employeeId }: { employeeId: string
       setError("");
       try {
         const results = await Promise.all(sections.map(async (section) => {
-          if (section.category && session?.user.id) {
-            await auditService.logSensitiveRead({
-              userId: session.user.id,
-              employeeId: employee.id,
-              recordType: section.table,
-              dataCategory: section.category,
-              purpose: `Viewed employee profile: ${section.title}`,
-            });
-          }
           const columns = ["id", ...section.columns].join(",");
           const { data, error: queryError } = await supabase!.from(section.table).select(columns).eq("employee_id", employee.id).limit(100);
           if (queryError) throw queryError;
-          return [section.table, (data ?? []) as unknown as DataRow[]] as const;
+          const sectionRows = (data ?? []) as unknown as DataRow[];
+          if (section.category && session?.user.id && sectionRows.length) {
+            await auditService.logSensitiveRead({
+              userId: session.user.id,
+              employeeId: employee.id,
+              recordId: employee.id,
+              recordType: section.table,
+              dataCategory: section.category,
+              purpose: `Viewed employee profile: ${section.title}`,
+              accessedFields: ["id", ...section.columns],
+            });
+          }
+          return [section.table, sectionRows] as const;
         }));
         if (active) setRows(Object.fromEntries(results));
       } catch {

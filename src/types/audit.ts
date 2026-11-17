@@ -49,6 +49,7 @@ export interface SensitiveReadLog {
     | "PENSION"
     | "CONFIDENTIAL_DOCUMENT";
   purpose: string;
+  accessedFields?: string[];
   scopeIds?: string[];
   sessionId?: string;
   ipAddress?: string;
