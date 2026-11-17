@@ -1,6 +1,5 @@
 import { lazy, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getMetricIcon, getPathIcon, getWorkspaceIcon, Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { canAccessModule, canWriteModule } from "@/app/modules";
 import {
@@ -18,7 +17,6 @@ interface Metric {
   label: string;
   table: string;
   value: number | null;
-  hint: string;
 }
 
 const metricPages: Record<string, string> = {
@@ -48,31 +46,31 @@ function metricsForWorkspace(workspace: PersonnelWorkspace, roles: string[]) {
   const managesPersonnel = canManageWorkspacePersonnel(workspace, roles);
 
   if (managesPersonnel) {
-    metrics.push({ label: "Employees", table: "employees", hint: "In this personnel scope" });
-    metrics.push({ label: "Active assignments", table: "assignments", hint: "Effective in this personnel scope" });
-    metrics.push({ label: "Open vacancies", table: "vacancies", hint: "In this personnel scope" });
-    metrics.push({ label: "Applicants", table: "applicants", hint: "For your authorized vacancies" });
-    metrics.push({ label: "Leave records", table: "leave_records", hint: "For employees in this scope" });
-    metrics.push({ label: "Training records", table: "training_records", hint: "For employees in this scope" });
-    metrics.push({ label: "Qualifications", table: "qualifications", hint: "For employees in this scope" });
-    metrics.push({ label: "Performance appraisals", table: "performance_appraisals", hint: "For employees in this scope" });
-    metrics.push({ label: "Transfer history", table: "employee_transfers", hint: "Moves to and from this personnel scope" });
-    metrics.push({ label: "Retirement cases", table: "retirements", hint: "For employees in this scope" });
-    metrics.push({ label: "Early retirement applications", table: "early_retirement_applications", hint: "For employees in this scope" });
+    metrics.push({ label: "Employees", table: "employees" });
+    metrics.push({ label: "Active assignments", table: "assignments" });
+    metrics.push({ label: "Open vacancies", table: "vacancies" });
+    metrics.push({ label: "Applicants", table: "applicants" });
+    metrics.push({ label: "Leave records", table: "leave_records" });
+    metrics.push({ label: "Training records", table: "training_records" });
+    metrics.push({ label: "Qualifications", table: "qualifications" });
+    metrics.push({ label: "Performance appraisals", table: "performance_appraisals" });
+    metrics.push({ label: "Transfer history", table: "employee_transfers" });
+    metrics.push({ label: "Retirement cases", table: "retirements" });
+    metrics.push({ label: "Early retirement applications", table: "early_retirement_applications" });
   }
 
   if (["EDUCATION", "HEALTH"].includes(workspace.code) && canAccessModule("/organization/institutions", roles)) {
-    metrics.push({ label: workspace.code === "HEALTH" ? "Health facilities" : "Education institutions", table: "institutions", hint: "Within this Board" });
+    metrics.push({ label: workspace.code === "HEALTH" ? "Health facilities" : "Education institutions", table: "institutions" });
   }
   if (["HEALTH", "ICT"].includes(workspace.code) && canAccessModule("/licences", roles)) {
-    metrics.push({ label: workspace.code === "HEALTH" ? "Professional licences" : "Technical certifications", table: "professional_licences", hint: "Within this personnel scope" });
+    metrics.push({ label: workspace.code === "HEALTH" ? "Professional licences" : "Technical certifications", table: "professional_licences" });
   }
   if (workspace.kind === "secretariat") {
-    metrics.push({ label: "Priests", table: "clergy", hint: "In Secretariat personnel" });
-    metrics.push({ label: "Catechists", table: "catechists", hint: "In Secretariat personnel" });
-    metrics.push({ label: "Archdeaconries", table: "archdeaconries", hint: "In your ecclesiastical scope" });
-    metrics.push({ label: "Parishes", table: "parishes", hint: "In your ecclesiastical scope" });
-    metrics.push({ label: "Local churches", table: "local_churches", hint: "In your ecclesiastical scope" });
+    metrics.push({ label: "Priests", table: "clergy" });
+    metrics.push({ label: "Catechists", table: "catechists" });
+    metrics.push({ label: "Archdeaconries", table: "archdeaconries" });
+    metrics.push({ label: "Parishes", table: "parishes" });
+    metrics.push({ label: "Local churches", table: "local_churches" });
   }
 
   return metrics.filter((metric) => canAccessModule(metricPages[metric.table], roles));
@@ -83,9 +81,7 @@ function WorkspaceCards({ workspaces }: { workspaces: PersonnelWorkspace[] }) {
     <section className="workspace-card-grid" aria-label="Authorized personnel workspaces">
       {workspaces.map((workspace) => (
         <Link className="workspace-card" to={`/${workspace.slug}`} key={workspace.slug}>
-          <span className="workspace-card-icon"><Icon name={getWorkspaceIcon(workspace.code)} size={20} /></span>
-          <span className="workspace-card-copy"><strong>{workspace.name}</strong><small>{workspace.description}</small></span>
-          <span className="workspace-card-arrow"><Icon name="arrowRight" size={17} /></span>
+          <span className="workspace-card-copy"><strong>{workspace.name}</strong></span>
         </Link>
       ))}
     </section>
@@ -140,7 +136,7 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
   }, [workspace, activeDomain, hasWorkspaceAccess, metricDefinitions]);
 
   if (workspace && !hasWorkspaceAccess) {
-    return <div className="page-content"><div className="empty-state"><div className="empty-mark">Restricted</div><h2>Workspace access required</h2><p>This account cannot open personnel workspaces.</p></div></div>;
+    return <div className="page-content"><div className="empty-state"><h2>Workspace access required</h2></div></div>;
   }
 
   if (!workspace) {
@@ -155,14 +151,13 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
     return (
       <div className="page-content">
         <header className="page-heading">
-          <div><p className="eyebrow">DIOCESE OF KIGEZI</p><h1><Icon name="overview" size={23} />Your authorized workspaces</h1><p className="muted">Open the personnel area assigned to your role and organizational scope.</p></div>
+          <h1>Your authorized workspaces</h1>
         </header>
         {workspaces.length > 0 && <WorkspaceCards workspaces={workspaces} />}
         {visibleQuickLinks.length > 0 && <section className="panel dashboard-self-service">
-          <div className="panel-heading"><div><p className="eyebrow">PERSONAL ACCESS</p><h2>Available records</h2></div></div>
-          <div className="workspace-shortcuts">{visibleQuickLinks.map((path) => <Link className="button button-secondary button-small" to={path} key={path}><Icon name={getPathIcon(path)} size={14} />{path === "/people" ? "Employee directory" : path.slice(1).replaceAll("/", " · ").replaceAll("-", " ")}</Link>)}</div>
+          <div className="workspace-shortcuts">{visibleQuickLinks.map((path) => <Link className="button button-secondary button-small" to={path} key={path}>{path === "/people" ? "Employee directory" : path.slice(1).replaceAll("/", " · ").replaceAll("-", " ")}</Link>)}</div>
         </section>}
-        {workspaces.length === 0 && visibleQuickLinks.length === 0 && <div className="empty-state"><div className="empty-mark">No workspace</div><h2>No personnel workspace is assigned</h2><p>Ask your administrator to assign an organizational scope to your account.</p></div>}
+        {workspaces.length === 0 && visibleQuickLinks.length === 0 && <div className="empty-state"><h2>No personnel workspace is assigned</h2></div>}
       </div>
     );
   }
@@ -172,41 +167,32 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
   return (
     <div className="page-content">
       <header className="page-heading">
-        <div><p className="eyebrow">{workspace.kind === "secretariat" ? "CENTRAL ADMINISTRATION" : `${workspace.shortName.toUpperCase()} BOARD`}</p><h1><Icon name={getWorkspaceIcon(workspace.code)} size={23} />{workspace.shortName} dashboard</h1><p className="muted">{workspace.description}</p></div>
-        {canManageWorkspacePersonnel(workspace, roles) && canWriteModule("/people", roles) && <Link className="button button-primary" to={workspacePath("/people", workspace.slug)}><Icon name="plus" size={15} />Add employee</Link>}
+        <h1>{workspace.shortName}</h1>
+        {canManageWorkspacePersonnel(workspace, roles) && canWriteModule("/people", roles) && <Link className="button button-primary" to={workspacePath("/people", workspace.slug)}>Add employee</Link>}
       </header>
       {error && <div className="notice notice-warning" role="status">{error}</div>}
       <section className="metric-grid" aria-label={`${workspace.shortName} totals`}>
-        {metrics.map((metric, index) => (
+        {metrics.map((metric) => (
           <article className="metric-card" key={metric.table}>
-            <div className={`metric-icon metric-icon-${index % 4}`}><Icon name={getMetricIcon(metric.table)} size={17} /></div>
             <div className="metric-label">{metric.label}</div>
             <div className="metric-value">{metric.value === null ? "—" : metric.value.toLocaleString()}</div>
-            <div className="metric-hint">{metric.hint}</div>
           </article>
         ))}
-        {metrics.length === 0 && <div className="panel dashboard-note"><p className="eyebrow">SYSTEMS ACCESS</p><h2>{workspace.shortName} operations</h2><p className="muted">This account has access to the workspace without personnel-record permissions.</p></div>}
+        {metrics.length === 0 && <div className="panel dashboard-note">No records available</div>}
       </section>
       <div className="dashboard-columns">
-        <section className="panel">
-          <div className="panel-heading"><div><p className="eyebrow">{workspace.shortName.toUpperCase()}</p><h2>Workspace navigation</h2></div><span className="panel-badge">Scope enforced by database</span></div>
+        <section className="panel" aria-label={`${workspace.shortName} navigation`}>
           <div className="quick-link-grid">
-            {quickLinks.map((item, index) => (
+            {quickLinks.map((item) => (
               <Link className="quick-link" to={workspacePath(item.path, workspace.slug)} key={item.path}>
-                <span className={`quick-link-icon quick-link-${index % 6}`}><Icon name={getPathIcon(item.path)} size={18} /></span>
-                <span><strong>{item.label}</strong><small>{workspace.shortName} records and workflows</small></span>
-                <span className="quick-link-arrow"><Icon name="arrowRight" size={15} /></span>
+                <span><strong>{item.label}</strong></span>
               </Link>
             ))}
           </div>
         </section>
         <aside className="panel panel-accent">
-          <p className="eyebrow">PERSONNEL MANAGEMENT</p>
-          <h2>{workspace.shortName} manages its own workforce.</h2>
-          <p className="muted">Employee totals, recruitment, leave and development figures are calculated from records visible in your authorized scope.</p>
-          {workspace.kind === "secretariat" && <Link className="text-link" to={workspacePath("/organization/archdeaconries", workspace.slug)}>Open ecclesiastical structure <Icon name="arrowRight" size={14} /></Link>}
-          {workspace.kind === "board" && <Link className="text-link" to={workspacePath("/organization/institutions", workspace.slug)}>Open Board institutions <Icon name="arrowRight" size={14} /></Link>}
-          <div className="access-note"><span className="access-dot" /> Protected by role, personnel domain and organizational scope</div>
+          {workspace.kind === "secretariat" && <Link className="text-link" to={workspacePath("/organization/archdeaconries", workspace.slug)}>Ecclesiastical structure</Link>}
+          {workspace.kind === "board" && <Link className="text-link" to={workspacePath("/organization/institutions", workspace.slug)}>Board institutions</Link>}
         </aside>
       </div>
     </div>

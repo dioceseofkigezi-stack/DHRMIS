@@ -46,12 +46,10 @@ export default function LoginPage() {
 
   return (
     <main className="login-screen">
-      <ThemeControl className="login-theme-control" />
+      <ThemeControl className="login-theme-control" showIcon={false} />
       <section className="login-card" aria-labelledby="login-title">
         <div className="brand-lockup"><img className="brand-symbol" src="/LOGO.PNG" alt="" /><span>DHRMIS</span></div>
-        <p className="eyebrow">DIOCESE OF KIGEZI</p>
         <h1 id="login-title">Welcome back</h1>
-        <p className="muted">Sign in to your human resource management workspace.</p>
         {!supabase && <div className="notice notice-warning">Connect the approved Supabase project in the application environment.</div>}
         {error && <div className="notice notice-error" role="alert">{error}</div>}
         <form className="form-stack" onSubmit={(event) => void handleSubmit(event)}>

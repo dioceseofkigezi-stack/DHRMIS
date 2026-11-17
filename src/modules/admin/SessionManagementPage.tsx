@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { canAccessModule } from "@/app/modules";
 import ConfirmDialog from "@/components/feedback/ConfirmDialog";
-import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
@@ -105,22 +104,21 @@ export default function SessionManagementPage() {
     setBusy(false);
   }
 
-  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2><p>Only platform administrators can manage sign-in sessions.</p></div></div>;
+  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Sessions & devices" description="Review tracked sign-ins and revoke session access when a device should no longer be trusted." icon="shield" actions={<button className="button button-secondary" type="button" onClick={() => void loadSessions()} disabled={loading}><Icon name="refresh" size={14} />Refresh</button>} />
+    <AdminPageHeader title="Sessions & devices" description="Review tracked sign-ins and revoke session access when a device should no longer be trusted." icon="shield" actions={<button className="button button-secondary" type="button" onClick={() => void loadSessions()} disabled={loading}>Refresh</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     {!online && <AdminNotice tone="warning">You are offline. Session revocation is unavailable until the connection returns.</AdminNotice>}
-    <div className="admin-access-explainer"><Icon name="shield" size={16} /><span>Revoked sessions are rejected by database authorization checks. Passwords and access tokens are never displayed here.</span></div>
     <section className="panel admin-directory-panel" aria-label="Sign-in sessions">
       <div className="admin-table-toolbar">
         <div><strong>{total.toLocaleString()}</strong><span> tracked sessions</span></div>
         <div className="admin-filter-controls">
-          <label className="search-box"><Icon name="search" size={14} /><input aria-label="Search sessions" placeholder="Search account, device or IP" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+          <label className="search-box"><input aria-label="Search sessions" placeholder="Search account, device or IP" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
           <label className="admin-filter-label">Status<select aria-label="Filter session status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">All sessions</option><option value="active">Active</option><option value="inactive">Inactive or expired</option></select></label>
         </div>
       </div>
       {loading ? <div className="admin-table-state" role="status"><span className="loading-spinner" />Loading recorded sessions…</div>
-        : rows.length === 0 ? <div className="admin-table-state"><strong>No matching sessions</strong><span>Sessions appear after a signed-in account records its device.</span></div>
+        : rows.length === 0 ? <div className="admin-table-state"><strong>No matching sessions</strong></div>
           : <div className="table-scroll"><table className="admin-data-table"><thead><tr><th>Account</th><th>Device</th><th>IP address</th><th>Created</th><th>Last activity</th><th>Expires</th><th>Status</th><th>Action</th></tr></thead><tbody>{rows.map((row) => {
             const active = sessionIsActive(row);
             return <tr key={row.id}>

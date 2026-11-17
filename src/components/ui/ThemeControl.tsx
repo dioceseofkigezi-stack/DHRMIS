@@ -1,13 +1,13 @@
 import { Icon } from "@/components/ui/Icon";
 import { useTheme, type ThemePreference } from "@/core/theme/ThemeProvider";
 
-export function ThemeControl({ className = "" }: { className?: string }) {
+export function ThemeControl({ className = "", showIcon = true }: { className?: string; showIcon?: boolean }) {
   const { preference, setPreference } = useTheme();
   const icon = preference === "system" ? "monitor" : preference === "dark" ? "moon" : "sun";
 
   return (
     <label className={`theme-control${className ? ` ${className}` : ""}`}>
-      <Icon name={icon} size={16} />
+      {showIcon && <Icon name={icon} size={16} />}
       <select
         aria-label="Color theme"
         title="Color theme"

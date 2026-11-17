@@ -25,7 +25,6 @@ export class AppErrorBoundary extends Component<Props, State> {
 
     return (
       <main className="error-boundary" role="alert">
-        <p className="eyebrow">DHRMIS WORKSPACE</p>
         <h1>{this.props.title ?? "This section could not be displayed"}</h1>
         <p className="muted">The page stopped unexpectedly. Reload it to try again.</p>
         <button className="button button-primary" onClick={() => window.location.reload()}>

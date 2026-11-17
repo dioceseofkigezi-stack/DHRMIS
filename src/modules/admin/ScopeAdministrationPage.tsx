@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { canAccessModule } from "@/app/modules";
-import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
 import { ADMIN_PAGE_SIZE, AdminNotice, AdminPageHeader, AdminPagination, AdminStatus, adminErrorMessage, formatAdminDate } from "./AdminConsoleShared";
@@ -69,23 +68,22 @@ export default function ScopeAdministrationPage() {
 
   useEffect(() => { void loadScopes(); }, [loadScopes]);
 
-  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2><p>Only the Super/System Administrator can review account scopes.</p></div></div>;
+  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Organizational access" description="Review account scopes. A user’s primary personnel scope follows their assigned role and is synchronized by the database." icon="target" actions={<Link className="button button-primary" to="/admin/users"><Icon name="people" size={14} />Manage account roles</Link>} />
+    <AdminPageHeader title="Organizational access" description="Review account scopes. A user’s primary personnel scope follows their assigned role and is synchronized by the database." icon="target" actions={<Link className="button button-primary" to="/admin/users">Manage account roles</Link>} />
     {error && <AdminNotice>{error}</AdminNotice>}
-    <div className="admin-access-explainer"><Icon name="shield" size={16} /><span>Role changes are the supported way to change a designated account’s department. Scope records shown here are access metadata, not departmental HR records.</span></div>
     <section className="panel admin-directory-panel" aria-label="Organizational scope assignments">
       <div className="admin-table-toolbar">
         <div><strong>{total.toLocaleString()}</strong><span> scope assignments</span></div>
         <div className="admin-filter-controls">
-          <label className="search-box"><Icon name="search" size={14} /><input aria-label="Search organizational scopes" placeholder="Search user, scope or type" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+          <label className="search-box"><input aria-label="Search organizational scopes" placeholder="Search user, scope or type" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
           <label className="admin-filter-label">Scope type<select aria-label="Filter by scope type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="">All types</option>{scopeTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
           <label className="admin-filter-label">Status<select aria-label="Filter by scope status" value={activeFilter} onChange={(event) => setActiveFilter(event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
-          <button className="button button-secondary button-small" type="button" onClick={() => void loadScopes()} disabled={loading}><Icon name="refresh" size={13} />Refresh</button>
+          <button className="button button-secondary button-small" type="button" onClick={() => void loadScopes()} disabled={loading}>Refresh</button>
         </div>
       </div>
       {loading ? <div className="admin-table-state" role="status"><span className="loading-spinner" />Loading organizational access…</div>
-        : rows.length === 0 ? <div className="admin-table-state"><strong>No matching scope assignments</strong><span>Try a different search or status filter.</span></div>
+        : rows.length === 0 ? <div className="admin-table-state"><strong>No matching scope assignments</strong></div>
           : <div className="table-scroll"><table className="admin-data-table"><thead><tr><th>Account</th><th>Scope</th><th>Purpose</th><th>Assignment type</th><th>Status</th><th>Expiry</th><th>Assigned</th><th /></tr></thead><tbody>{rows.map((row) => <tr key={row.id}>
             <td><strong>{row.full_name || "Name not provided"}</strong><small>{row.email || row.user_id || "Unknown account"}</small></td>
             <td><strong>{row.scope_name}</strong><small>{row.scope_type} · <code>{row.scope_id}</code></small></td>
@@ -94,7 +92,7 @@ export default function ScopeAdministrationPage() {
             <td><AdminStatus tone={row.isactive ? "success" : "warning"}>{row.isactive ? "Active" : "Inactive"}</AdminStatus></td>
             <td>{formatAdminDate(row.expiresat)}</td>
             <td>{formatAdminDate(row.assignmentdate)}</td>
-            <td>{row.email && <Link className="text-button" to={`/admin/users?search=${encodeURIComponent(row.email)}`} aria-label={`Manage access for ${row.email}`}>Manage user <Icon name="arrowRight" size={13} /></Link>}</td>
+            <td>{row.email && <Link className="text-button" to={`/admin/users?search=${encodeURIComponent(row.email)}`} aria-label={`Manage access for ${row.email}`}>Manage user </Link>}</td>
           </tr>)}</tbody></table></div>}
       {!loading && <AdminPagination page={page} total={total} onPage={setPage} />}
     </section>

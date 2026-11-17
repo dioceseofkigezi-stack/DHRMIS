@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent, type FormEvent } from "react";
 import { supabase } from "@/core/config";
 import { canAccessModule, canWriteModule } from "@/app/modules";
-import { Icon } from "@/components/ui/Icon";
 import DataTable from "@/components/tables/DataTable";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
@@ -186,19 +185,18 @@ export default function DocumentManagerPage() {
     }
   }
 
-  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2><p>Your account cannot access the document registry.</p></div></div>;
+  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   const pageCount = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
   return (
     <div className="page-content">
-      <header className="page-heading"><div><p className="eyebrow">ADMINISTRATION</p><h1><Icon name="document" size={23} />Documents & archive</h1><p className="muted">Private diocesan documents with logged access and short-lived download links.</p></div></header>
+      <header className="page-heading"><h1>Documents & archive</h1></header>
       {!online && <div className="notice notice-warning" role="status">You are offline. Uploads and downloads are disabled; files are never cached on this device.</div>}
-      {error && <div className="notice notice-error" role="alert">{error}<button className="notice-dismiss" onClick={() => setError("")} aria-label="Dismiss error"><Icon name="close" size={16} /></button></div>}
+      {error && <div className="notice notice-error" role="alert">{error}<button className="text-button" onClick={() => setError("")}>Dismiss</button></div>}
       {canUpload && <details className="panel document-upload-panel">
         <summary>Upload a document</summary>
         <form className="document-upload-form" onSubmit={(event) => void handleUpload(event)}>
           <label className="document-drop-zone" htmlFor="document-file" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
-            <Icon name="upload" size={25} />
             <strong>{file ? file.name : "Drop a document here or choose a file"}</strong>
             <small>{file ? `${formatSize(file.size)} · ${file.type}` : "PDF, image, Word or Excel · up to 50 MB"}</small>
             <input id="document-file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.doc,.docx,.xls,.xlsx" onChange={(event) => chooseFile(event.currentTarget.files?.[0])} disabled={!online || uploading} />
@@ -208,15 +206,15 @@ export default function DocumentManagerPage() {
             <label className="field">Linked employee<SearchableSelect id="document-employee" value={employeeId} options={employees.map((employee) => ({ value: employee.id, label: `${employee.first_name} ${employee.last_name} · ${employee.employee_number}` }))} placeholder="Search employees by name or number…" emptyLabel="No employees are available" disabled={!online || uploading} onChange={setEmployeeId} /></label>
             <label className="field">Access classification<select value={accessLevel} onChange={(event) => setAccessLevel(event.target.value as typeof accessLevel)} disabled={!online || uploading}><option value="Private">Private</option><option value="DiocesanHR">Diocesan HR</option><option value="BoardLevel">Board level</option></select></label>
           </div>
-          <div className="document-upload-footer"><p>Uploaded files are stored privately. Opening a file requires authorization and is logged.</p><button type="submit" className="button button-primary" disabled={!online || uploading || !file || !documentType.trim()}><Icon name="upload" size={15} />{uploading ? "Uploading and registering…" : "Upload and register"}</button></div>
+          <div className="document-upload-footer"><button type="submit" className="button button-primary" disabled={!online || uploading || !file || !documentType.trim()}>{uploading ? "Uploading and registering…" : "Upload and register"}</button></div>
         </form>
       </details>}
       <section className="panel records-panel document-records">
-        <div className="records-toolbar"><div><strong>{count.toLocaleString()}</strong><span> {count === 1 ? "document" : "documents"}</span></div><div className="toolbar-actions"><label className="search-box"><Icon name="search" size={14} /><input aria-label="Search document file names" placeholder="Search file names" value={search} onChange={(event) => setSearch(event.target.value)} /></label><button className="button button-secondary button-small" onClick={() => void loadDocuments()} disabled={loading}><Icon name="refresh" size={14} />Refresh</button></div></div>
+        <div className="records-toolbar"><div><strong>{count.toLocaleString()}</strong><span> {count === 1 ? "document" : "documents"}</span></div><div className="toolbar-actions"><label className="search-box"><input aria-label="Search document file names" placeholder="Search file names" value={search} onChange={(event) => setSearch(event.target.value)} /></label><button className="button button-secondary button-small" onClick={() => void loadDocuments()} disabled={loading}>Refresh</button></div></div>
         {loading ? <div className="table-state" role="status">Loading documents…</div> : rows.length ? <>
-          <DataTable rows={rows} columns={columns} sortKey="created_at" sortAscending={false} onSort={() => undefined} actions={(row) => <button className="text-button" onClick={() => void handleDownload(row)} disabled={!online || downloadingId === row.id}><Icon name="download" size={13} />{downloadingId === row.id ? "Preparing…" : "Download"}</button>} />
-          <div className="pagination-bar"><span>Page {page + 1} of {pageCount}</span><div><button className="button button-secondary button-small" onClick={() => setPage((value) => Math.max(0, value - 1))} disabled={page === 0}><Icon name="arrowLeft" size={13} />Previous</button><button className="button button-secondary button-small" onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))} disabled={page >= pageCount - 1}>Next<Icon name="arrowRight" size={13} /></button></div></div>
-        </> : <div className="empty-state"><h2>{debouncedSearch ? "No matching documents" : "No documents yet"}</h2><p>{debouncedSearch ? "Try another file name." : "Authorized staff can upload documents for the registry."}</p></div>}
+          <DataTable rows={rows} columns={columns} sortKey="created_at" sortAscending={false} onSort={() => undefined} actions={(row) => <button className="text-button" onClick={() => void handleDownload(row)} disabled={!online || downloadingId === row.id}>{downloadingId === row.id ? "Preparing…" : "Download"}</button>} />
+          <div className="pagination-bar"><span>Page {page + 1} of {pageCount}</span><div><button className="button button-secondary button-small" onClick={() => setPage((value) => Math.max(0, value - 1))} disabled={page === 0}>Previous</button><button className="button button-secondary button-small" onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))} disabled={page >= pageCount - 1}>Next</button></div></div>
+        </> : <div className="empty-state"><h2>{debouncedSearch ? "No matching documents" : "No documents yet"}</h2></div>}
       </section>
     </div>
   );

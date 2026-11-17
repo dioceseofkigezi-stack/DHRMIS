@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
 
@@ -72,9 +71,7 @@ export default function UserRegistrationPanel({ online, onSuccess }: { online: b
     <section className="panel registration-panel" aria-labelledby="register-user-title">
       <div className="panel-heading registration-heading">
         <div>
-          <p className="eyebrow">ACCOUNT PROVISIONING</p>
           <h2 id="register-user-title">Register a user</h2>
-          <p className="muted">Invite a named account holder and assign the appropriate system or departmental role. Departmental roles manage their own personnel data.</p>
         </div>
       </div>
       {error && <div className="notice notice-error registration-message" role="alert">{error}</div>}
@@ -95,9 +92,8 @@ export default function UserRegistrationPanel({ online, onSuccess }: { online: b
           </label>
         </div>
         <div className="registration-footer">
-          <p className="muted">Each department role is limited to one active designated account and its matching organizational scope.</p>
           <button className="button button-primary" type="submit" disabled={!online || submitting || !supabase}>
-            <Icon name="plus" size={15} />{submitting ? "Sending invitation…" : "Send invitation"}
+            {submitting ? "Sending invitation…" : "Send invitation"}
           </button>
         </div>
       </form>

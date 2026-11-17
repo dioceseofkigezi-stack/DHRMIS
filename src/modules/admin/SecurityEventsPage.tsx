@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { canAccessModule } from "@/app/modules";
 import ConfirmDialog from "@/components/feedback/ConfirmDialog";
-import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
@@ -100,25 +99,25 @@ export default function SecurityEventsPage() {
     setBusy(false);
   }
 
-  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2><p>Security events are visible to the Super/System Administrator only.</p></div></div>;
+  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   const confirm = pending?.action === "acknowledge" ? { title: "Acknowledge security event?", label: "Acknowledge", body: "Record that this alert has been reviewed. It will remain open until it is resolved." }
     : pending?.action === "resolve" ? { title: "Resolve security event?", label: "Resolve event", body: "Mark this alert as resolved. This status change will be recorded in the audit trail." }
       : { title: "Reopen security event?", label: "Reopen event", body: "Return this event to the active security queue for further review." };
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Security events" description="Review system alerts, record acknowledgement, and track resolution status." icon="security" actions={<button className="button button-secondary" type="button" onClick={() => void loadEvents()} disabled={loading}><Icon name="refresh" size={14} />Refresh</button>} />
+    <AdminPageHeader title="Security events" description="Review system alerts, record acknowledgement, and track resolution status." icon="security" actions={<button className="button button-secondary" type="button" onClick={() => void loadEvents()} disabled={loading}>Refresh</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     {!online && <AdminNotice tone="warning">You are offline. Security event updates are unavailable.</AdminNotice>}
     <section className="panel admin-directory-panel" aria-label="Security event log">
       <div className="admin-table-toolbar">
         <div><strong>{total.toLocaleString()}</strong><span> security events</span></div>
         <div className="admin-filter-controls">
-          <label className="search-box"><Icon name="search" size={14} /><input aria-label="Search security events" placeholder="Search events, component or user" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+          <label className="search-box"><input aria-label="Search security events" placeholder="Search events, component or user" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
           <label className="admin-filter-label">Severity<select aria-label="Filter by severity" value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="">All severity</option>{["Critical", "High", "Medium", "Low", "Informational"].map((value) => <option key={value}>{value}</option>)}</select></label>
           <label className="admin-filter-label">State<select aria-label="Filter by event state" value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="">All states</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="resolved">Resolved</option></select></label>
         </div>
       </div>
       {loading ? <div className="admin-table-state" role="status"><span className="loading-spinner" />Loading security events…</div>
-        : rows.length === 0 ? <div className="admin-table-state"><strong>No matching security events</strong><span>There are no events for the current filters.</span></div>
+        : rows.length === 0 ? <div className="admin-table-state"><strong>No matching security events</strong></div>
           : <div className="table-scroll"><table className="admin-data-table"><thead><tr><th>Severity</th><th>Event</th><th>Actor</th><th>Component</th><th>Details</th><th>Created</th><th>Status</th><th>Actions</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}>
             <td><AdminStatus tone={eventTone(row.severity)}>{row.severity}</AdminStatus></td>
             <td><strong>{row.event_type.replaceAll("_", " ")}</strong><small><code>{row.id}</code></small></td>

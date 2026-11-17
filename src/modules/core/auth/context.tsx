@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/core/config";
@@ -33,6 +33,8 @@ interface UserRoleRecord {
   accountexpiry: string | null;
   lockeduntil: string | null;
 }
+
+const sessionRecordError = "Your sign-in session could not be recorded. Sign out and contact your system administrator.";
 
 function sessionIdFromToken(accessToken: string) {
   try {
@@ -77,6 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roleUserId, setRoleUserId] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(Boolean(supabase));
   const [roleError, setRoleError] = useState("");
+  const sessionRef = useRef(session);
+  const lastRecordedAccessTokenRef = useRef("");
 
   useEffect(() => {
     if (!supabase) {
@@ -104,6 +108,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    if (!session || !supabase || roleUserId !== session.user.id || lastRecordedAccessTokenRef.current === session.access_token) return;
+
+    let active = true;
+    const currentSession = session;
+    void recordAuthSession(currentSession).then(() => {
+      if (!active) return;
+      lastRecordedAccessTokenRef.current = currentSession.access_token;
+      setRoleError((error) => error === sessionRecordError ? "" : error);
+    }).catch(() => {
+      if (!active) return;
+      setRoleError(sessionRecordError);
+    });
+
+    return () => { active = false; };
+  }, [session, roleUserId]);
+
+  const sessionUserId = session?.user.id ?? null;
+
+  useEffect(() => {
     let active = true;
     async function loadCurrentWorkspace() {
       setRoleError("");
@@ -111,11 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPersonnelDomains([]);
       setWorkspaceDomainCodes([]);
       setRoleUserId(null);
-      if (!session || !supabase) {
+      lastRecordedAccessTokenRef.current = "";
+      const currentSession = sessionRef.current;
+      if (!currentSession || !supabase) {
         setRoleLoading(false);
         return;
       }
-      const currentSession = session;
+      if (currentSession.user.id !== sessionUserId) return;
       const supabaseClient = supabase;
 
       setRoleLoading(true);
@@ -149,10 +178,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         await recordAuthSession(currentSession);
+        lastRecordedAccessTokenRef.current = currentSession.access_token;
       } catch {
         if (await recoverSystemAdminRole()) return;
         if (active) {
-          setRoleError("Your sign-in session could not be recorded. Sign out and contact your system administrator.");
+          setRoleError(sessionRecordError);
           setRoleLoading(false);
           setRoleUserId(currentSession.user.id);
         }
@@ -208,7 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void loadCurrentWorkspace();
     return () => { active = false; };
-  }, [session]);
+  }, [sessionUserId]);
 
   const value = useMemo<AuthContextValue>(() => ({
     session,

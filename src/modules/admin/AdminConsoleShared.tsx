@@ -1,16 +1,16 @@
 import type { ReactNode } from "react";
-import { Icon, type SystemIcon } from "@/components/ui/Icon";
+import type { SystemIcon } from "@/components/ui/Icon";
 
 export const ADMIN_PAGE_SIZE = 25;
 
-export function AdminPageHeader({ title, description, icon = "settings", actions }: {
+export function AdminPageHeader({ title, actions }: {
   title: string;
   description: string;
   icon?: SystemIcon;
   actions?: ReactNode;
 }) {
   return <header className="page-heading admin-page-heading">
-    <div><p className="eyebrow">SUPER/SYSTEM ADMINISTRATION</p><h1><Icon name={icon} size={23} />{title}</h1><p className="muted">{description}</p></div>
+    <h1>{title}</h1>
     {actions && <div className="admin-heading-actions">{actions}</div>}
   </header>;
 }

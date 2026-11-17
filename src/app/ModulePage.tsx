@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "@/core/config";
 import { canAccessModule, canDeleteModule, canExportModule, canWriteModule, getModule, type FieldConfig, type LookupKind } from "@/app/modules";
-import { getPathIcon, Icon } from "@/components/ui/Icon";
 import DataTable from "@/components/tables/DataTable";
 import ConfirmDialog from "@/components/feedback/ConfirmDialog";
 import { csvCell } from "@/core/security/csv";
@@ -207,7 +206,7 @@ export default function ModulePage() {
 
   useEffect(() => { void loadRows(); }, [loadRows]);
 
-  if (!config) return <div className="page-content"><div className="empty-state"><h2>Page not found</h2><p>This page is not part of the system.</p></div></div>;
+  if (!config) return <div className="page-content"><div className="empty-state"><h2>Page not found</h2></div></div>;
 
   const pageConfig = config;
   const canEdit = Boolean(pageConfig.fields?.length && !pageConfig.readOnly && canWriteModule(pageConfig.path, roles));
@@ -502,40 +501,40 @@ export default function ModulePage() {
 
   return (
     <div className="page-content">
-      {!hasAccess && <div className="empty-state"><div className="empty-mark">Restricted</div><h2>Access restricted</h2><p>Your account does not have a role that can access this page.</p></div>}
+      {!hasAccess && <div className="empty-state"><h2>Access restricted</h2></div>}
       {hasAccess && <>
         <header className="page-heading">
-          <div><p className="eyebrow">{pageConfig.group.toUpperCase()}</p><h1><Icon name={getPathIcon(pageConfig.path)} size={23} />{pageConfig.label}</h1><p className="muted">{pageConfig.description}</p></div>
-          {canEdit && <button className="button button-primary" onClick={openCreate} disabled={!online}><Icon name="plus" size={15} />{pageConfig.path === "/admin/users" ? "Assign a role" : "New record"}</button>}
+          <h1>{pageConfig.label}</h1>
+          {canEdit && <button className="button button-primary" onClick={openCreate} disabled={!online}>{pageConfig.path === "/admin/users" ? "Assign a role" : "New record"}</button>}
         </header>
         {pageConfig.path === "/admin/users" && <UserRegistrationPanel online={online} />}
         {!supabase && <div className="notice notice-warning">The Supabase data service is not configured. Contact your administrator.</div>}
         {!online && <div className="notice notice-warning" role="status">You are offline. Confidential edits are not stored for later synchronization.</div>}
-        {error && <div className="notice notice-error" role="alert">{error}<button className="notice-dismiss" onClick={() => setError("")} aria-label="Dismiss error"><Icon name="close" size={16} /></button></div>}
+        {error && <div className="notice notice-error" role="alert">{error}<button className="text-button" onClick={() => setError("")}>Dismiss</button></div>}
         {pageConfig.table && <section className="panel records-panel" aria-label={`${pageConfig.label} records`}>
           <div className="records-toolbar">
             <div><strong>{count.toLocaleString()}</strong><span> {count === 1 ? "record" : "records"}{count ? ` · showing ${firstRecord}–${lastRecord}` : ""}</span></div>
             <div className="toolbar-actions">
-              <label className="search-box"><Icon name="search" size={14} /><input aria-label={`Search ${pageConfig.label}`} placeholder={searchColumn ? "Search records" : "Search unavailable"} value={search} onChange={(event) => setSearch(event.target.value)} disabled={!searchColumn} /></label>
-              {canExport && <button className="button button-secondary button-small" onClick={() => setConfirmExport(true)} disabled={!online || !rows.length || loading}><Icon name="export" size={14} />Export page</button>}
-              <button className="button button-secondary button-small" onClick={() => void loadRows()} disabled={loading}><Icon name="refresh" size={14} />Refresh</button>
+              <label className="search-box"><input aria-label={`Search ${pageConfig.label}`} placeholder={searchColumn ? "Search records" : "Search unavailable"} value={search} onChange={(event) => setSearch(event.target.value)} disabled={!searchColumn} /></label>
+              {canExport && <button className="button button-secondary button-small" onClick={() => setConfirmExport(true)} disabled={!online || !rows.length || loading}>Export page</button>}
+              <button className="button button-secondary button-small" onClick={() => void loadRows()} disabled={loading}>Refresh</button>
             </div>
           </div>
           {loading ? <div className="table-state" role="status">Loading records…</div> : rows.length ? <>
             <DataTable rows={rows} columns={tableColumns} sortKey={sortKey || columns[0] || "id"} sortAscending={sortAscending} onSort={(column) => { if (sortKey === column) setSortAscending((current) => !current); else { setSortKey(column); setSortAscending(true); } setPage(0); }} actions={canEditExisting || canDelete || pageConfig.table === "employee_transfers" ? (row) => <>
-              {canEditExisting && <button className="text-button" onClick={() => openEdit(row)} disabled={!online}><Icon name="edit" size={13} />Edit</button>}
-              {canDelete && <button className="text-button text-danger" onClick={() => setPendingDelete(row)} disabled={!online}><Icon name="trash" size={13} />Delete</button>}
-              {pageConfig.table === "employee_transfers" && row.status === "Pending" && row.created_by !== session?.user.id && <button className="text-button" onClick={() => void handleTransferAction(row)} disabled={!online}><Icon name="check" size={13} />Approve</button>}
-              {pageConfig.table === "employee_transfers" && row.status === "Approved" && typeof row.effective_date === "string" && Date.parse(`${row.effective_date}T00:00:00`) <= Date.now() && <button className="text-button" onClick={() => void handleTransferAction(row)} disabled={!online}><Icon name="check" size={13} />Complete</button>}
+              {canEditExisting && <button className="text-button" onClick={() => openEdit(row)} disabled={!online}>Edit</button>}
+              {canDelete && <button className="text-button text-danger" onClick={() => setPendingDelete(row)} disabled={!online}>Delete</button>}
+              {pageConfig.table === "employee_transfers" && row.status === "Pending" && row.created_by !== session?.user.id && <button className="text-button" onClick={() => void handleTransferAction(row)} disabled={!online}>Approve</button>}
+              {pageConfig.table === "employee_transfers" && row.status === "Approved" && typeof row.effective_date === "string" && Date.parse(`${row.effective_date}T00:00:00`) <= Date.now() && <button className="text-button" onClick={() => void handleTransferAction(row)} disabled={!online}>Complete</button>}
             </> : undefined} />
-            <div className="pagination-bar"><span>Page {page + 1} of {pageCount}</span><div><button className="button button-secondary button-small" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0}><Icon name="arrowLeft" size={13} />Previous</button><button className="button button-secondary button-small" onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))} disabled={page >= pageCount - 1}>Next<Icon name="arrowRight" size={13} /></button></div></div>
-          </> : <div className="empty-state"><div className="empty-mark">No records</div><h2>{debouncedSearch ? "No matching records" : "No records yet"}</h2><p>{debouncedSearch ? "Try another search term or clear the search." : "There are no records in this view yet."}</p>{canEdit && !debouncedSearch && <button className="button button-primary" onClick={openCreate}><Icon name="plus" size={14} />Create a record</button>}</div>}
+            <div className="pagination-bar"><span>Page {page + 1} of {pageCount}</span><div><button className="button button-secondary button-small" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0}>Previous</button><button className="button button-secondary button-small" onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))} disabled={page >= pageCount - 1}>Next</button></div></div>
+          </> : <div className="empty-state"><h2>{debouncedSearch ? "No matching records" : "No records yet"}</h2>{canEdit && !debouncedSearch && <button className="button button-primary" onClick={openCreate}>Create a record</button>}</div>}
         </section>}
         {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
           <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-            <div className="modal-heading"><div><p className="eyebrow">{pageConfig.label}</p><h2 id="modal-title">{selected ? "Edit record" : "New record"}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)} aria-label="Close dialog" disabled={saving}><Icon name="close" size={18} /></button></div>
+            <div className="modal-heading"><h2 id="modal-title">{selected ? "Edit record" : "New record"}</h2><button type="button" className="text-button" onClick={() => setModalOpen(false)} disabled={saving}>Close</button></div>
             <form onSubmit={(event) => { if (pageConfig.path === "/settings") { event.preventDefault(); setConfirmSystemConfigSave(true); } else void handleSave(event); }}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} employeesLoading={employeesLoading} lookups={lookupChoices} lookupsLoading={lookupsLoading} scopeType={String(values.scope_type ?? "")} onChange={(value) => setValues((current) => field.name === "scope_type" ? { ...current, scope_type: value, scope_id: "" } : { ...current, [field.name]: value })} />)}</div>
-              <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || employeesLoading || lookupsLoading || !online}>{saving ? "Saving…" : <><Icon name={selected ? "check" : "plus"} size={14} />{selected ? "Save changes" : "Create record"}</>}</button></div>
+              <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || employeesLoading || lookupsLoading || !online}>{saving ? "Saving…" : <>{selected ? "Save changes" : "Create record"}</>}</button></div>
             </form>
           </section>
         </div>}

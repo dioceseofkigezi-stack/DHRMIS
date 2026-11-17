@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { AdminNotice, formatAdminDate } from "./AdminConsoleShared";
@@ -26,15 +25,15 @@ const initialSummary: AdminSummary = {
 };
 
 const links = [
-  ["/admin/users", "User access", "Manage account roles, activation, suspension and password recovery.", "people"],
-  ["/admin/roles", "Roles & permissions", "Review the current role catalog and permission assignments.", "role"],
-  ["/admin/scopes", "Organizational access", "Review role-derived scope assignments and their status.", "target"],
-  ["/admin/sessions", "Sessions & devices", "Inspect recorded devices and revoke active sessions.", "shield"],
-  ["/security", "Security events", "Review and resolve system security alerts.", "security"],
-  ["/audit", "Audit activity", "Review administrative activity and sensitive-read records.", "assignment"],
-  ["/admin/monitoring", "System health & monitoring", "Check core services and investigate failed system activity.", "monitor"],
-  ["/settings", "System configuration", "Manage configuration values protected by database policies.", "settings"],
-  ["/admin/reports", "Administrative reports", "View account, session, security and audit summaries.", "chart"],
+  ["/admin/users", "User access"],
+  ["/admin/roles", "Roles & permissions"],
+  ["/admin/scopes", "Organizational access"],
+  ["/admin/sessions", "Sessions & devices"],
+  ["/security", "Security events"],
+  ["/audit", "Audit activity"],
+  ["/admin/monitoring", "System health & monitoring"],
+  ["/settings", "System configuration"],
+  ["/admin/reports", "Administrative reports"],
 ] as const;
 
 function metricLabel(value: number | null) {
@@ -82,38 +81,37 @@ export default function SystemAdminDashboard() {
   useEffect(() => { void loadSummary(); }, [loadSummary]);
 
   const metrics = [
-    { label: "Managed accounts", value: summary.accounts, hint: `${metricLabel(summary.activeAccounts)} currently active`, icon: "people" },
-    { label: "Active sessions", value: summary.activeSessions, hint: "Tracked devices not yet expired", icon: "shield" },
-    { label: "Open security events", value: summary.openSecurityEvents, hint: "Unresolved system alerts", icon: "security" },
-    { label: "Audit activity · 24 hours", value: summary.auditLastDay, hint: "Recorded system changes", icon: "assignment" },
+    { label: "Managed accounts", value: summary.accounts },
+    { label: "Active sessions", value: summary.activeSessions },
+    { label: "Open security events", value: summary.openSecurityEvents },
+    { label: "Audit activity · 24 hours", value: summary.auditLastDay },
   ] as const;
 
   return <div className="page-content admin-dashboard">
     <header className="page-heading admin-page-heading">
-      <div><p className="eyebrow">SYSTEM CONTROL CENTER</p><h1><Icon name="overview" size={23} />Super/System Administration</h1><p className="muted">Manage accounts, access, platform security and technical configuration.</p></div>
+      <h1>Super/System Administration</h1>
       <div className="admin-heading-actions">
         <span className={`admin-health-pill admin-health-${summary.health}`}><span />{summary.health === "checking" ? "Checking services" : summary.health === "available" ? "Data service available" : "Service check failed"}</span>
-        <button className="button button-secondary" type="button" onClick={() => void loadSummary()} disabled={loading}><Icon name="refresh" size={14} />Refresh</button>
+        <button className="button button-secondary" type="button" onClick={() => void loadSummary()} disabled={loading}>Refresh</button>
       </div>
     </header>
     {!online && <AdminNotice tone="warning">You are offline. Administration changes are unavailable until the connection returns.</AdminNotice>}
     {error && <AdminNotice>{error}</AdminNotice>}
     <section className="admin-metric-grid" aria-label="System administration metrics">
-      {metrics.map((metric, index) => <article className="admin-metric-card" key={metric.label}>
-        <span className={`admin-metric-icon admin-metric-icon-${index}`}><Icon name={metric.icon} size={18} /></span>
-        <div><span>{metric.label}</span><strong>{loading ? "…" : metricLabel(metric.value)}</strong><small>{metric.hint}</small></div>
+      {metrics.map((metric) => <article className="admin-metric-card" key={metric.label}>
+        <div><span>{metric.label}</span><strong>{loading ? "…" : metricLabel(metric.value)}</strong></div>
       </article>)}
     </section>
     <div className="admin-dashboard-grid">
       <section className="panel admin-function-panel">
-        <div className="panel-heading"><div><p className="eyebrow">PLATFORM OPERATIONS</p><h2>Administration functions</h2></div><span className="panel-badge">System role only</span></div>
-        <div className="admin-function-grid">{links.map(([path, title, description, icon]) => <Link className="admin-function-card" to={path} key={path}>
-          <span className="admin-function-icon"><Icon name={icon} size={18} /></span><span><strong>{title}</strong><small>{description}</small></span><Icon name="arrowRight" size={15} />
+        <h2>Administration</h2>
+        <div className="admin-function-grid">{links.map(([path, title]) => <Link className="admin-function-card" to={path} key={path}>
+          <span><strong>{title}</strong></span>
         </Link>)}</div>
       </section>
       <aside className="panel admin-recent-panel">
-        <div className="panel-heading"><div><p className="eyebrow">SYSTEM HISTORY</p><h2>Recent activity</h2></div><Link className="text-link" to="/audit">View all <Icon name="arrowRight" size={13} /></Link></div>
-        {loading ? <p className="muted" role="status">Loading recent activity…</p> : summary.recentActivity.length === 0 ? <div className="admin-inline-empty"><strong>No recent audit entries</strong><span>System activity will appear here when recorded.</span></div> : <ul className="admin-activity-list">{summary.recentActivity.map((item) => <li key={item.id}>
+        <div className="panel-heading"><h2>Recent activity</h2><Link className="text-link" to="/audit">View all</Link></div>
+        {loading ? <p className="muted" role="status">Loading…</p> : summary.recentActivity.length === 0 ? <div className="admin-inline-empty"><strong>No recent audit entries</strong></div> : <ul className="admin-activity-list">{summary.recentActivity.map((item) => <li key={item.id}>
           <span className={`admin-activity-dot admin-activity-${item.result.toLowerCase()}`} />
           <span><strong>{item.action.replaceAll("_", " ")}</strong><small>{item.user_name || "Unknown user"} · {item.module || "System"}</small></span>
           <time dateTime={item.created_at}>{formatAdminDate(item.created_at)}</time>
@@ -121,8 +119,5 @@ export default function SystemAdminDashboard() {
         {error && summary.recentActivity.length === 0 && !loading && <p className="admin-muted-state">Recent activity is unavailable.</p>}
       </aside>
     </div>
-    <section className="admin-capability-note" aria-label="Backup and recovery status">
-      <span><Icon name="shield" size={18} /></span><div><strong>Backup and recovery status</strong><p>No backup-status source is configured in this DHRMIS deployment. Backup operations are not available from this workspace.</p></div>
-    </section>
   </div>;
 }

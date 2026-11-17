@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { canAccessModule, canWriteModule } from "@/app/modules";
-import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useToast } from "@/core/notifications/ToastProvider";
@@ -191,13 +190,13 @@ export default function DeathRecordsPage() {
     setSaving(false);
   }
 
-  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2><p>Your account cannot access death verification records.</p></div></div>;
+  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   const pageCount = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const employeeLabels = new Map(employees.map((employee) => [employee.id, `${employee.employee_number} · ${employee.first_name} ${employee.last_name}`]));
 
   return (
     <div className="page-content">
-      <header className="page-heading"><div><p className="eyebrow">GOVERNANCE</p><h1><Icon name="death" size={23} />Death verification</h1><p className="muted">Reports require two different verifiers and a separate approval before employee status changes.</p></div></header>
+      <header className="page-heading"><h1>Death verification</h1></header>
       {!online && <div className="notice notice-warning" role="status">You are offline. Death reports and approvals are not queued.</div>}
       {error && <div className="notice notice-error" role="alert">{error}</div>}
       {canSubmit && <section className="panel document-upload-panel">
@@ -210,11 +209,11 @@ export default function DeathRecordsPage() {
             <label className="field">Certificate reference<input maxLength={200} value={certificate} onChange={(event) => setCertificate(event.target.value)} disabled={!online || saving} /></label>
           </div>
           <label className="field">Cause of death<textarea maxLength={4000} rows={3} value={cause} onChange={(event) => setCause(event.target.value)} disabled={!online || saving} /></label>
-          <div className="document-upload-footer"><p>The database records the reporter and requires independent verification and approval.</p><button type="submit" className="button button-primary" disabled={!online || saving || !employeeId}><Icon name="plus" size={14} />{saving ? "Submitting…" : "Submit report"}</button></div>
+          <div className="document-upload-footer"><button type="submit" className="button button-primary" disabled={!online || saving || !employeeId}>{saving ? "Submitting…" : "Submit report"}</button></div>
         </form>
       </section>}
       <section className="panel records-panel">
-        <div className="records-toolbar"><div><strong>{count.toLocaleString()}</strong><span> death reports</span></div><button className="button button-secondary button-small" onClick={() => void loadRecords()} disabled={loading}><Icon name="refresh" size={14} />Refresh</button></div>
+        <div className="records-toolbar"><div><strong>{count.toLocaleString()}</strong><span> death reports</span></div><button className="button button-secondary button-small" onClick={() => void loadRecords()} disabled={loading}>Refresh</button></div>
         {loading ? <div className="table-state" role="status">Loading records…</div> : rows.length ? <>
           <div className="table-scroll"><table><thead><tr><th>Employee</th><th>Reported</th><th>Status</th><th>Approval</th>{canSubmit && <th>Action</th>}</tr></thead>
             <tbody>{rows.map((record) => <tr key={record.id}>
@@ -222,10 +221,10 @@ export default function DeathRecordsPage() {
               <td>{record.reported_death_date ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(record.reported_death_date)) : "—"}</td>
               <td>{record.verification_status}</td>
               <td>{record.approval_date ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(record.approval_date)) : "Pending"}</td>
-              {canSubmit && <td>{record.verification_status === "Pending" || record.verification_status === "FirstVerification" ? <button className="text-button" onClick={() => void verifyRecord(record.id)} disabled={!online || saving}><Icon name="check" size={13} />Record verification</button> : record.verification_status === "SecondVerification" ? approvalRecord === record.id ? <div className="inline-approval"><input aria-label="Confirmed death date" type="date" required value={confirmedDate} onChange={(event) => setConfirmedDate(event.target.value)} disabled={!online || saving} /><button className="text-button" onClick={() => void approveRecord(record.id, confirmedDate)} disabled={!online || saving || !confirmedDate}><Icon name="check" size={13} />Confirm approval</button><button className="text-button" onClick={() => setApprovalRecord("")} disabled={saving}>Cancel</button></div> : <button className="text-button" onClick={() => { setApprovalRecord(record.id); setConfirmedDate(dateInputValue(record.reported_death_date)); }} disabled={!online || saving}><Icon name="check" size={13} />Approve</button> : "—"}</td>}
+              {canSubmit && <td>{record.verification_status === "Pending" || record.verification_status === "FirstVerification" ? <button className="text-button" onClick={() => void verifyRecord(record.id)} disabled={!online || saving}>Record verification</button> : record.verification_status === "SecondVerification" ? approvalRecord === record.id ? <div className="inline-approval"><input aria-label="Confirmed death date" type="date" required value={confirmedDate} onChange={(event) => setConfirmedDate(event.target.value)} disabled={!online || saving} /><button className="text-button" onClick={() => void approveRecord(record.id, confirmedDate)} disabled={!online || saving || !confirmedDate}>Confirm approval</button><button className="text-button" onClick={() => setApprovalRecord("")} disabled={saving}>Cancel</button></div> : <button className="text-button" onClick={() => { setApprovalRecord(record.id); setConfirmedDate(dateInputValue(record.reported_death_date)); }} disabled={!online || saving}>Approve</button> : "—"}</td>}
             </tr>)}</tbody></table></div>
-          <div className="pagination-bar"><span>Page {page + 1} of {pageCount}</span><div><button className="button button-secondary button-small" onClick={() => setPage((value) => Math.max(0, value - 1))} disabled={page === 0}><Icon name="arrowLeft" size={13} />Previous</button><button className="button button-secondary button-small" onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))} disabled={page >= pageCount - 1}>Next<Icon name="arrowRight" size={13} /></button></div></div>
-        </> : <div className="empty-state"><h2>No death reports</h2><p>There are no reports in this view yet.</p></div>}
+          <div className="pagination-bar"><span>Page {page + 1} of {pageCount}</span><div><button className="button button-secondary button-small" onClick={() => setPage((value) => Math.max(0, value - 1))} disabled={page === 0}>Previous</button><button className="button button-secondary button-small" onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))} disabled={page >= pageCount - 1}>Next</button></div></div>
+        </> : <div className="empty-state"><h2>No death reports</h2></div>}
       </section>
     </div>
   );

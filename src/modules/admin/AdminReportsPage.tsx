@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessModule } from "@/app/modules";
-import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { csvCell } from "@/core/security/csv";
 import { useAuth } from "@/modules/core/auth/context";
@@ -92,27 +91,24 @@ export default function AdminReportsPage() {
     return metrics.filter((metric) => !term || metric.label.toLowerCase().includes(term) || metric.category.toLowerCase().includes(term) || metric.description.toLowerCase().includes(term));
   }, [metrics, search]);
 
-  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2><p>Administrative reports are available to the Super/System Administrator.</p></div></div>;
+  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Administrative reports" description="Create summary reports from account, session, security and system activity records." icon="chart" actions={<button className="button button-secondary" type="button" onClick={() => void loadReport()} disabled={loading}><Icon name="refresh" size={14} />Refresh report</button>} />
+    <AdminPageHeader title="Administrative reports" description="Create summary reports from account, session, security and system activity records." icon="chart" actions={<button className="button button-secondary" type="button" onClick={() => void loadReport()} disabled={loading}>Refresh report</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     <section className="panel admin-report-controls">
-      <div><p className="eyebrow">REPORT PERIOD</p><h2>System access and activity</h2><p className="muted">Date filters apply to audit and sensitive-read totals. Account and session cards show current status.</p></div>
       <div className="admin-filter-controls">
         <label className="admin-filter-label">From<input type="date" aria-label="Report start date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></label>
         <label className="admin-filter-label">To<input type="date" aria-label="Report end date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></label>
-        <label className="search-box"><Icon name="search" size={14} /><input aria-label="Search report metrics" placeholder="Search report totals" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-        <button className="button button-primary" type="button" onClick={() => downloadReport(visibleMetrics, fromDate, toDate)} disabled={loading || visibleMetrics.length === 0}><Icon name="download" size={14} />Download CSV</button>
+        <label className="search-box"><input aria-label="Search report metrics" placeholder="Search report totals" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+        <button className="button button-primary" type="button" onClick={() => downloadReport(visibleMetrics, fromDate, toDate)} disabled={loading || visibleMetrics.length === 0}>Download CSV</button>
       </div>
     </section>
     {loading ? <div className="admin-table-state" role="status"><span className="loading-spinner" />Building administrative report…</div>
-      : visibleMetrics.length === 0 ? <div className="admin-table-state"><strong>No report totals match</strong><span>Clear the search filter or refresh the report.</span></div>
+      : visibleMetrics.length === 0 ? <div className="admin-table-state"><strong>No report totals match</strong></div>
         : <section className="admin-report-grid" aria-label="Administrative report totals">{visibleMetrics.map((metric) => <article className="panel admin-report-card" key={metric.key}>
-          <div><p className="eyebrow">{metric.category.toUpperCase()}</p><h3>{metric.label}</h3></div>
+          <h3>{metric.label}</h3>
           <strong>{metric.count === null ? "Unavailable" : metric.count.toLocaleString()}</strong>
-          <p className="muted">{metric.description}</p>
           {metric.count === null && <AdminStatus tone="warning">Check access</AdminStatus>}
         </article>)}</section>}
-    <div className="admin-access-explainer"><Icon name="shield" size={16} /><span>These reports summarize platform administration records only. Departmental employee records, payroll, recruitment and other HR data are not queried here.</span></div>
   </div>;
 }

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { canAccessModule } from "@/app/modules";
-import { Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
 import { ADMIN_PAGE_SIZE, AdminNotice, AdminPageHeader, AdminPagination, AdminStatus, adminErrorMessage, formatAdminDate } from "./AdminConsoleShared";
@@ -79,9 +78,9 @@ export default function AdminAuditPage() {
 
   useEffect(() => { void loadLogs(); }, [loadLogs]);
 
-  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2><p>Audit and sensitive-read logs are restricted to the Super/System Administrator.</p></div></div>;
+  if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Audit activity" description="Review recorded system changes and access to sensitive information. Log entries are read-only." icon="assignment" actions={<button className="button button-secondary" type="button" onClick={() => void loadLogs()} disabled={loading}><Icon name="refresh" size={14} />Refresh</button>} />
+    <AdminPageHeader title="Audit activity" description="Review recorded system changes and access to sensitive information. Log entries are read-only." icon="assignment" actions={<button className="button button-secondary" type="button" onClick={() => void loadLogs()} disabled={loading}>Refresh</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     <section className="panel admin-directory-panel" aria-label="Audit history">
       <div className="admin-log-tabs" role="tablist" aria-label="Log type">
@@ -91,13 +90,13 @@ export default function AdminAuditPage() {
       <div className="admin-table-toolbar">
         <div><strong>{total.toLocaleString()}</strong><span> {source === "audit" ? "audit records" : "sensitive reads"}</span></div>
         <div className="admin-filter-controls">
-          <label className="search-box"><Icon name="search" size={14} /><input aria-label="Search audit logs" placeholder="Search actor, action or category" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+          <label className="search-box"><input aria-label="Search audit logs" placeholder="Search actor, action or category" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
           <label className="admin-filter-label">From<input aria-label="Audit date from" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></label>
           <label className="admin-filter-label">To<input aria-label="Audit date to" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></label>
         </div>
       </div>
       {loading ? <div className="admin-table-state" role="status"><span className="loading-spinner" />Loading {source === "audit" ? "audit activity" : "sensitive-read records"}…</div>
-        : rows.length === 0 ? <div className="admin-table-state"><strong>No matching log records</strong><span>Activity will appear here as protected changes and reads are recorded.</span></div>
+        : rows.length === 0 ? <div className="admin-table-state"><strong>No matching log records</strong></div>
           : <div className="table-scroll"><table className="admin-data-table"><thead>{source === "audit" ? <tr><th>Time</th><th>User</th><th>Action</th><th>Module</th><th>Record type</th><th>Result</th><th>Purpose / context</th></tr> : <tr><th>Time</th><th>User</th><th>Data category</th><th>Record type</th><th>Record ID</th><th>Purpose</th></tr>}</thead><tbody>{rows.map((row) => {
             const time = row.created_at || row.timestamp;
             return source === "audit" ? <tr key={row.id}>
