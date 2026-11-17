@@ -5,6 +5,7 @@ import { supabase } from "@/core/config";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useAuth } from "@/modules/core/auth/context";
+import SearchableSelect from "@/components/forms/SearchableSelect";
 
 interface DeathRecord {
   id: string;
@@ -132,6 +133,10 @@ export default function DeathRecordsPage() {
   async function submitReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!online || !canSubmit || !supabase) return;
+    if (!employeeId) {
+      setError("Select an employee from the list before submitting the report.");
+      return;
+    }
     setSaving(true);
     setError("");
     const { error: rpcError } = await supabase.rpc("submit_employee_death_report", {
@@ -199,7 +204,7 @@ export default function DeathRecordsPage() {
         <h2>Submit a death report</h2>
         <form className="document-upload-form" onSubmit={(event) => void submitReport(event)}>
           <div className="document-upload-fields">
-            <label className="field">Employee<select required value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} disabled={!online || saving}><option value="">Select an employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employeeLabels.get(employee.id)}</option>)}</select></label>
+            <label className="field">Employee<SearchableSelect id="death-employee" value={employeeId} options={employees.map((employee) => ({ value: employee.id, label: employeeLabels.get(employee.id) ?? `${employee.first_name} ${employee.last_name}` }))} placeholder="Search employees by name or number…" emptyLabel="No employees are available" required disabled={!online || saving} onChange={setEmployeeId} /></label>
             <label className="field">Reported date<input type="date" value={reportedDate} onChange={(event) => setReportedDate(event.target.value)} disabled={!online || saving} /></label>
             <label className="field">Place of death<input maxLength={300} value={place} onChange={(event) => setPlace(event.target.value)} disabled={!online || saving} /></label>
             <label className="field">Certificate reference<input maxLength={200} value={certificate} onChange={(event) => setCertificate(event.target.value)} disabled={!online || saving} /></label>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "@/core/config";
-import { canAccessModule, canDeleteModule, canExportModule, canWriteModule, getModule, type FieldConfig } from "@/app/modules";
+import { canAccessModule, canDeleteModule, canExportModule, canWriteModule, getModule, type FieldConfig, type LookupKind } from "@/app/modules";
 import { getPathIcon, Icon } from "@/components/ui/Icon";
 import DataTable from "@/components/tables/DataTable";
 import ConfirmDialog from "@/components/feedback/ConfirmDialog";
@@ -12,10 +12,35 @@ import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useAuth } from "@/modules/core/auth/context";
 import { canAccessWorkspace, getWorkspaceDomain, getWorkspaceFromPath, roleDisplayName, workspacePath } from "@/core/organizational-scope/workspaces";
 import UserRegistrationPanel from "@/modules/admin/UserRegistrationPanel";
+import SearchableSelect, { type SearchableOption } from "@/components/forms/SearchableSelect";
 
 type Row = Record<string, unknown> & { id: string };
 type FormValues = Record<string, unknown>;
 type EmployeeDirectoryEntry = { id: string; employee_number: string; first_name: string; last_name: string };
+type LookupSource = { table: string; columns: string; orderBy: string };
+const lookupSources: Record<LookupKind, LookupSource> = {
+  board: { table: "boards", columns: "id,code,name", orderBy: "name" },
+  department: { table: "departments", columns: "id,code,name", orderBy: "name" },
+  institution: { table: "institutions", columns: "id,code,name,institution_type,location", orderBy: "name" },
+  archdeaconry: { table: "archdeaconries", columns: "id,name,region", orderBy: "name" },
+  parish: { table: "parishes", columns: "id,name,region", orderBy: "name" },
+  local_church: { table: "local_churches", columns: "id,name", orderBy: "name" },
+  position: { table: "positions", columns: "id,code,title", orderBy: "title" },
+  grade: { table: "grades", columns: "id,code,title,salary_scale", orderBy: "title" },
+  personnel_domain: { table: "personnel_domains", columns: "id,code,name", orderBy: "name" },
+  assignment: { table: "assignments", columns: "id,employee_id,assignment_type,start_date,status", orderBy: "start_date" },
+  vacancy: { table: "vacancies", columns: "id,vacancy_code,position,status", orderBy: "vacancy_code" },
+  applicant: { table: "applicants", columns: "id,full_name,email,status", orderBy: "full_name" },
+  document: { table: "documents", columns: "id,original_file_name,document_type,created_at", orderBy: "original_file_name" },
+};
+const scopeLookupKinds: Record<string, LookupKind> = {
+  Archdeaconry: "archdeaconry",
+  Parish: "parish",
+  Institution: "institution",
+  Department: "department",
+  Board: "board",
+  PersonnelDomain: "personnel_domain",
+};
 const PAGE_SIZE = 25;
 
 function getErrorMessage(error: unknown) {
@@ -44,13 +69,17 @@ function getInitialValues(fields: FieldConfig[], defaults: FormValues = {}) {
   return Object.fromEntries(fields.map((field) => [field.name, defaults[field.name] ?? (field.kind === "checkbox" ? false : "")]));
 }
 
-function EditField({ field, value, onChange, employees, employeesLoading }: {
+function EditField({ field, value, onChange, employees, employeesLoading, lookups, lookupsLoading, scopeType }: {
   field: FieldConfig;
   value: unknown;
   onChange: (value: unknown) => void;
-  employees: Array<{ id: string; label: string }>;
+  employees: SearchableOption[];
+  lookups: Partial<Record<LookupKind, SearchableOption[]>>;
   employeesLoading: boolean;
+  lookupsLoading: boolean;
+  scopeType: string;
 }) {
+  const scopeLookupKind = field.lookup === "scope" ? scopeLookupKinds[scopeType] : undefined;
   const common = {
     id: `field-${field.name}`,
     name: field.name,
@@ -65,7 +94,8 @@ function EditField({ field, value, onChange, employees, employeesLoading }: {
       {field.label}{field.required && <span aria-hidden="true" className="required-indicator"> *</span>}
       {field.kind === "textarea" || field.kind === "json" ? <textarea {...common} value={typeof value === "string" ? value : JSON.stringify(value ?? [], null, 2)} rows={3} placeholder={field.placeholder} /> :
         field.kind === "select" ? <select {...common} value={String(value ?? "")}><option value="">Select…</option>{field.options?.map((option) => <option key={option} value={option}>{field.name === "role_code" ? roleDisplayName(option) : option}</option>)}</select> :
-          field.kind === "employee" ? employeesLoading ? <select {...common} value="" disabled><option value="">Loading employees…</option></select> : employees.length ? <select {...common} value={String(value ?? "")}><option value="">Select an employee…</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}</select> : <input {...common} value={String(value ?? "")} placeholder="Employee record ID" /> :
+          field.kind === "employee" ? <SearchableSelect id={common.id} name={field.name} value={String(value ?? "")} options={employees} placeholder="Search employees by name or number…" emptyLabel={employeesLoading ? "Loading employees…" : "No employees are available"} loading={employeesLoading} required={field.required} onChange={onChange} /> :
+            field.kind === "lookup" && field.lookup ? <SearchableSelect id={common.id} name={field.name} value={String(value ?? "")} options={field.lookup === "scope" ? scopeLookupKind ? lookups[scopeLookupKind] ?? [] : [] : lookups[field.lookup] ?? []} placeholder={field.lookup === "scope" ? scopeLookupKind ? `Search ${scopeType.toLowerCase()} by name…` : "Choose a scope type first" : `Search ${field.label.toLowerCase()}…`} emptyLabel={field.lookup === "scope" && !scopeLookupKind ? "Choose a scope type first" : lookupsLoading ? "Loading choices…" : `No ${field.label.toLowerCase()} choices are available`} loading={lookupsLoading} disabled={field.lookup === "scope" && !scopeLookupKind} required={field.required} onChange={onChange} /> :
             field.kind === "checkbox" ? <span className="checkbox-control"><input {...common} type="checkbox" checked={Boolean(value)} /> Yes</span> :
               <input {...common} type={field.kind ?? "text"} value={field.kind === "date" && value ? String(value).slice(0, 10) : String(value ?? "")} placeholder={field.placeholder} />}
     </label>
@@ -87,9 +117,11 @@ export default function ModulePage() {
       : undefined;
   const hasAccess = Boolean(config && canAccessModule(config.path, roles) && hasWorkspaceAccess);
   const [rows, setRows] = useState<Row[]>([]);
-  const [employees, setEmployees] = useState<Array<{ id: string; label: string }>>([]);
+  const [employees, setEmployees] = useState<SearchableOption[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
-  const employeeDirectoryRequest = useRef<Promise<Array<{ id: string; label: string }>> | null>(null);
+  const employeeDirectoryRequest = useRef<Promise<SearchableOption[]> | null>(null);
+  const [lookupChoices, setLookupChoices] = useState<Partial<Record<LookupKind, SearchableOption[]>>>({});
+  const [lookupsLoading, setLookupsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [error, setError] = useState("");
@@ -184,38 +216,118 @@ export default function ModulePage() {
   const columns = pageConfig.columns ?? [];
   const fields = pageConfig.fields ?? [];
 
-  async function loadEmployeeDirectory() {
-    if (!supabase || !hasAccess || !canEdit || !fields.some((field) => field.kind === "employee")) return;
+  async function loadEmployeeDirectory(): Promise<SearchableOption[]> {
+    if (!supabase || !hasAccess || !canEdit || !fields.some((field) => field.kind === "employee" || field.lookup === "assignment")) return [];
     if (!employeeDirectoryRequest.current) {
       setEmployeesLoading(true);
       employeeDirectoryRequest.current = (async () => {
-        const { data, error: queryError } = await supabase.rpc("get_employee_directory");
-        if (queryError) throw queryError;
-        const directoryData: unknown = data;
-        if (!Array.isArray(directoryData) || !directoryData.every(isEmployeeDirectoryEntry)) {
-          throw new Error("Employee directory returned an unexpected response.");
+        const directoryData: EmployeeDirectoryEntry[] = [];
+        const batchSize = 500;
+        for (let offset = 0; ; offset += batchSize) {
+          const { data, error: queryError } = await supabase.rpc("get_employee_directory").range(offset, offset + batchSize - 1);
+          if (queryError) throw queryError;
+          if (!Array.isArray(data) || !data.every(isEmployeeDirectoryEntry)) {
+            throw new Error("Employee directory returned an unexpected response.");
+          }
+          directoryData.push(...data);
+          if (data.length < batchSize) break;
         }
         return directoryData.map((employee) => ({
-          id: employee.id,
-          label: `${employee.employee_number} · ${employee.first_name} ${employee.last_name}`,
+          value: employee.id,
+          label: `${employee.first_name} ${employee.last_name} · ${employee.employee_number}`,
         }));
       })();
     }
 
     const request = employeeDirectoryRequest.current;
-    if (!request) return;
+    if (!request) return [];
     try {
-      setEmployees(await request);
+      const choices = await request;
+      setEmployees(choices);
+      return choices;
     } catch {
       employeeDirectoryRequest.current = null;
       setError("Unable to load employee choices. Check your access and try again.");
+      return [];
     } finally {
       setEmployeesLoading(false);
     }
   }
 
+  async function fetchLookupChoices(kind: LookupKind, employeeChoices: SearchableOption[]): Promise<SearchableOption[]> {
+    if (!supabase) return [];
+    const source = lookupSources[kind];
+    const records: Record<string, unknown>[] = [];
+    const batchSize = 500;
+    for (let offset = 0; ; offset += batchSize) {
+      let query = supabase.from(source.table).select(source.columns).order(source.orderBy, { ascending: true, nullsFirst: false });
+      if (kind === "assignment") query = query.eq("status", "Active");
+      if (kind === "personnel_domain") query = query.eq("is_active", true);
+      const { data, error: queryError } = await query.range(offset, offset + batchSize - 1);
+      if (queryError) throw queryError;
+      const pageRecords = (data ?? []) as unknown as Record<string, unknown>[];
+      records.push(...pageRecords);
+      if (pageRecords.length < batchSize) break;
+    }
+
+    if (kind === "document" && records.length && session?.user.id) {
+      const { error: auditError } = await supabase.from("sensitive_read_log").insert(records.map((record) => ({
+        user_id: session.user.id,
+        employee_id: null,
+        record_id: String(record.id),
+        record_type: "documents",
+        data_category: "CONFIDENTIAL_DOCUMENT",
+        purpose: "Viewed document choices for an assignment",
+      })));
+      if (auditError) throw new Error("Document choices could not be displayed because the access log could not be written.");
+    }
+
+    const employeeLabels = new Map(employeeChoices.map((employee) => [employee.value, employee.label]));
+    return records.flatMap((record) => {
+      if (typeof record.id !== "string") return [];
+      const parts = kind === "institution"
+        ? [record.name, record.code, record.institution_type, record.location]
+        : kind === "board" || kind === "department" || kind === "position" || kind === "grade" || kind === "personnel_domain"
+        ? [record.name ?? record.title, record.code]
+        : kind === "archdeaconry" || kind === "parish"
+          ? [record.name, record.region]
+          : kind === "local_church"
+            ? [record.name]
+            : kind === "assignment"
+              ? [employeeLabels.get(String(record.employee_id)) ?? "Employee", record.assignment_type, record.start_date ? String(record.start_date).slice(0, 10) : null]
+              : kind === "vacancy"
+                ? [record.vacancy_code, record.position, record.status]
+                : kind === "applicant"
+                  ? [record.full_name, record.email]
+                  : [record.original_file_name, record.document_type];
+      const label = parts.filter((part) => typeof part === "string" && part.length > 0).join(" · ");
+      return label ? [{ value: record.id, label }] : [];
+    });
+  }
+
+  async function loadLookupChoices() {
+    const requestedKinds = [...new Set(fields.flatMap((field) => field.kind !== "lookup" || !field.lookup
+      ? []
+      : field.lookup === "scope" ? Object.values(scopeLookupKinds) : [field.lookup]))];
+    const missingKinds = requestedKinds.filter((kind) => lookupChoices[kind] === undefined);
+    if (!missingKinds.length) return;
+    setLookupsLoading(true);
+    try {
+      const employeeChoices = fields.some((field) => field.kind === "employee" || field.lookup === "assignment")
+        ? await loadEmployeeDirectory()
+        : employees;
+      const loaded = await Promise.all(missingKinds.map(async (kind) => [kind, await fetchLookupChoices(kind, employeeChoices)] as const));
+      setLookupChoices((current) => ({ ...current, ...Object.fromEntries(loaded) }));
+    } catch {
+      setError("Unable to load related record choices. Check your access and try again.");
+    } finally {
+      setLookupsLoading(false);
+    }
+  }
+
   function openCreate() {
     void loadEmployeeDirectory();
+    void loadLookupChoices();
     setSelected(null);
     setValues(getInitialValues(fields, pageConfig.defaultValues));
     setModalOpen(true);
@@ -224,6 +336,7 @@ export default function ModulePage() {
   function openEdit(row: Row) {
     if (!canEditExisting) return;
     void loadEmployeeDirectory();
+    void loadLookupChoices();
     setSelected(row);
     setValues(getInitialValues(fields, row));
     setModalOpen(true);
@@ -242,6 +355,9 @@ export default function ModulePage() {
       const payload: FormValues = selected ? {} : { ...pageConfig.defaultValues };
       for (const field of fields) {
         const value = values[field.name];
+        if ((field.kind === "employee" || field.kind === "lookup") && field.required && (typeof value !== "string" || !value)) {
+          throw new Error(`${field.label} is required.`);
+        }
         if (value === "" || value === undefined) {
           if (selected) payload[field.name] = null;
         } else if (field.kind === "json") {
@@ -417,8 +533,8 @@ export default function ModulePage() {
         {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
           <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <div className="modal-heading"><div><p className="eyebrow">{pageConfig.label}</p><h2 id="modal-title">{selected ? "Edit record" : "New record"}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)} aria-label="Close dialog" disabled={saving}><Icon name="close" size={18} /></button></div>
-            <form onSubmit={(event) => void handleSave(event)}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} employeesLoading={employeesLoading} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))} />)}</div>
-              <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || employeesLoading || !online}>{saving ? "Saving…" : <><Icon name={selected ? "check" : "plus"} size={14} />{selected ? "Save changes" : "Create record"}</>}</button></div>
+            <form onSubmit={(event) => void handleSave(event)}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} employeesLoading={employeesLoading} lookups={lookupChoices} lookupsLoading={lookupsLoading} scopeType={String(values.scope_type ?? "")} onChange={(value) => setValues((current) => field.name === "scope_type" ? { ...current, scope_type: value, scope_id: "" } : { ...current, [field.name]: value })} />)}</div>
+              <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || employeesLoading || lookupsLoading || !online}>{saving ? "Saving…" : <><Icon name={selected ? "check" : "plus"} size={14} />{selected ? "Save changes" : "Create record"}</>}</button></div>
             </form>
           </section>
         </div>}

@@ -1,4 +1,5 @@
-export type FieldKind = "text" | "email" | "number" | "date" | "textarea" | "json" | "select" | "checkbox" | "employee";
+export type LookupKind = "board" | "department" | "institution" | "archdeaconry" | "parish" | "local_church" | "position" | "grade" | "personnel_domain" | "assignment" | "vacancy" | "applicant" | "document";
+export type FieldKind = "text" | "email" | "number" | "date" | "textarea" | "json" | "select" | "checkbox" | "employee" | "lookup";
 
 export interface FieldConfig {
   name: string;
@@ -7,6 +8,7 @@ export interface FieldConfig {
   required?: boolean;
   options?: string[];
   placeholder?: string;
+  lookup?: LookupKind | "scope";
 }
 
 export interface ModuleConfig {
@@ -27,7 +29,7 @@ export interface ModuleConfig {
 }
 
 const employeeFields: FieldConfig[] = [
-  { name: "employee_id", label: "Employee ID", required: true },
+  { name: "employee_id", label: "Permanent employee ID", required: true },
   { name: "employee_number", label: "Employee number", required: true },
   { name: "title", label: "Title", required: true, kind: "select", options: ["Mr", "Mrs", "Ms", "Dr", "Rev", "Rev Can.", "Eng", "Ven", "Rt Rev.", "Father", "Deacon", "Other"] },
   { name: "first_name", label: "First name", required: true },
@@ -45,28 +47,28 @@ export const modulePages: ModuleConfig[] = [
   { path: "/catechists", label: "Catechists", group: "People", description: "Catechist records in the diocesan employee register.", table: "employees", titleField: "first_name", columns: ["employee_number", "first_name", "last_name", "email", "employment_status"], fields: employeeFields.filter((field) => field.name !== "employee_category"), defaultValues: { employee_category: "Catechist" }, filter: { column: "employee_category", value: "Catechist" } },
   { path: "/assignments", label: "Assignments", group: "People", description: "Manage effective-dated placements in this personnel domain.", table: "assignments", titleField: "assignment_type", columns: ["employee_id", "personnel_domain_id", "department_id", "institution_id", "position_id", "assignment_type", "start_date", "end_date", "status"], defaultValues: { is_primary: true }, fields: [
     { name: "employee_id", label: "Employee", kind: "employee", required: true },
-    { name: "department_id", label: "Department ID" }, { name: "institution_id", label: "Institution ID" },
-    { name: "archdeaconry_id", label: "Archdeaconry ID" }, { name: "parish_id", label: "Parish ID" },
-    { name: "local_church_id", label: "Local church ID" }, { name: "position_id", label: "Position ID" },
-    { name: "grade_id", label: "Grade ID" }, { name: "supervisor_id", label: "Supervisor employee ID" },
+    { name: "department_id", label: "Department", kind: "lookup", lookup: "department" }, { name: "institution_id", label: "Institution", kind: "lookup", lookup: "institution" },
+    { name: "archdeaconry_id", label: "Archdeaconry", kind: "lookup", lookup: "archdeaconry" }, { name: "parish_id", label: "Parish", kind: "lookup", lookup: "parish" },
+    { name: "local_church_id", label: "Local church", kind: "lookup", lookup: "local_church" }, { name: "position_id", label: "Position", kind: "lookup", lookup: "position" },
+    { name: "grade_id", label: "Grade", kind: "lookup", lookup: "grade" }, { name: "supervisor_id", label: "Supervisor", kind: "employee" },
     { name: "assignment_type", label: "Assignment type", kind: "select", options: ["Permanent", "Temporary", "Acting", "Probation", "Contract"], required: true },
     { name: "start_date", label: "Start date", kind: "date", required: true },
     { name: "end_date", label: "End date", kind: "date" },
     { name: "status", label: "Status", kind: "select", options: ["Active", "OnLeave", "Suspended", "Completed", "Terminated"] },
     { name: "authority", label: "Authority" }, { name: "reference_number", label: "Reference number" },
-    { name: "supporting_document_id", label: "Supporting document ID" },
+    { name: "supporting_document_id", label: "Supporting document", kind: "lookup", lookup: "document" },
     { name: "is_primary", label: "Primary assignment", kind: "checkbox" }, { name: "is_additional", label: "Additional assignment", kind: "checkbox" },
   ] },
   { path: "/transfers", label: "Employee transfers", group: "People", description: "Request and approve inter-domain transfers while retaining both assignment records.", table: "employee_transfers", titleField: "reason", columns: ["employee_id", "previous_domain_id", "new_domain_id", "effective_date", "status", "reference_number"], fields: [
-    { name: "previous_assignment_id", label: "Previous assignment ID", required: true },
-    { name: "new_domain_id", label: "Receiving personnel domain ID", required: true, placeholder: "Copy the ID from Personnel domains" },
+    { name: "previous_assignment_id", label: "Employee’s current assignment", kind: "lookup", lookup: "assignment", required: true },
+    { name: "new_domain_id", label: "Receiving personnel domain", kind: "lookup", lookup: "personnel_domain", required: true },
     { name: "effective_date", label: "Effective date", kind: "date", required: true },
     { name: "reason", label: "Reason", kind: "textarea", required: true },
     { name: "authority", label: "Authority" }, { name: "reference_number", label: "Reference number" },
     { name: "assignment_type", label: "New assignment type", kind: "select", options: ["Permanent", "Temporary", "Acting", "Probation", "Contract"] },
-    { name: "department_id", label: "New department ID" }, { name: "institution_id", label: "New institution ID" },
-    { name: "position_id", label: "New position ID" }, { name: "grade_id", label: "New grade ID" },
-    { name: "supervisor_id", label: "New supervisor employee ID" },
+    { name: "department_id", label: "New department", kind: "lookup", lookup: "department" }, { name: "institution_id", label: "New institution", kind: "lookup", lookup: "institution" },
+    { name: "position_id", label: "New position", kind: "lookup", lookup: "position" }, { name: "grade_id", label: "New grade", kind: "lookup", lookup: "grade" },
+    { name: "supervisor_id", label: "New supervisor", kind: "employee" },
   ] },
   { path: "/leave", label: "Leave management", group: "People", description: "Review leave requests, balances and decisions.", table: "leave_records", titleField: "leave_type", columns: ["employee_id", "leave_type", "start_date", "end_date", "balance_days", "status"], fields: [
     { name: "employee_id", label: "Employee", kind: "employee", required: true },
@@ -122,20 +124,20 @@ export const modulePages: ModuleConfig[] = [
   ] },
   { path: "/acting-appointments", label: "Acting appointments", group: "People", description: "Track temporary acting roles and their authorization.", table: "acting_appointments", titleField: "authority", columns: ["employee_id", "start_date", "end_date", "authority", "is_active"], fields: [
     { name: "employee_id", label: "Acting employee", kind: "employee" }, { name: "acting_for_employee_id", label: "Employee being covered", kind: "employee" },
-    { name: "acting_for_position_id", label: "Position ID" }, { name: "start_date", label: "Start date", kind: "date", required: true },
+    { name: "acting_for_position_id", label: "Position", kind: "lookup", lookup: "position" }, { name: "start_date", label: "Start date", kind: "date", required: true },
     { name: "end_date", label: "End date", kind: "date", required: true }, { name: "authority", label: "Authority", required: true },
     { name: "reference_number", label: "Reference number" }, { name: "is_active", label: "Active", kind: "checkbox" },
   ] },
   { path: "/delegations", label: "Delegations", group: "Administration", description: "Manage temporary delegated permissions and scope.", table: "delegations", titleField: "permission", columns: ["delegator_id", "delegate_id", "permission", "start_date", "end_date", "is_expired"], fields: [
-    { name: "delegator_id", label: "Delegator employee ID", required: true }, { name: "delegate_id", label: "Delegate employee ID", required: true },
+    { name: "delegator_id", label: "Delegator", kind: "employee", required: true }, { name: "delegate_id", label: "Delegate", kind: "employee", required: true },
     { name: "permission", label: "Permission", required: true }, { name: "scope", label: "Scope", required: true },
     { name: "start_date", label: "Start date", kind: "date", required: true }, { name: "end_date", label: "End date", kind: "date", required: true },
     { name: "reason", label: "Reason", kind: "textarea" },
   ] },
   { path: "/recruitment", label: "Vacancies", group: "Operations", description: "Create vacancies and monitor recruitment activity.", table: "vacancies", titleField: "position", columns: ["vacancy_code", "position", "position_type", "vacancies", "status", "expiry_date"], fields: [
     { name: "vacancy_code", label: "Vacancy code", required: true }, { name: "position", label: "Position", required: true },
-    { name: "department_id", label: "Department ID" }, { name: "institution_id", label: "Institution ID" },
-    { name: "grade_id", label: "Grade ID" },
+    { name: "department_id", label: "Department", kind: "lookup", lookup: "department" }, { name: "institution_id", label: "Institution", kind: "lookup", lookup: "institution" },
+    { name: "grade_id", label: "Grade", kind: "lookup", lookup: "grade" },
     { name: "position_type", label: "Position type", kind: "select", options: ["Permanent", "Temporary", "Contract", "Acting"] },
     { name: "location", label: "Location" }, { name: "vacancies", label: "Number of vacancies", kind: "number" },
     { name: "salary_range", label: "Salary range" }, { name: "requirements", label: "Requirements", kind: "textarea" },
@@ -143,7 +145,7 @@ export const modulePages: ModuleConfig[] = [
     { name: "expiry_date", label: "Closing date", kind: "date" },
   ] },
   { path: "/applicants", label: "Applicants", group: "Operations", description: "Review applicant records and recruitment stages for your vacancies.", table: "applicants", titleField: "full_name", columns: ["full_name", "email", "telephone", "highest_qualification", "status"], fields: [
-    { name: "vacancy_id", label: "Vacancy ID", required: true },
+    { name: "vacancy_id", label: "Vacancy", kind: "lookup", lookup: "vacancy", required: true },
     { name: "full_name", label: "Full name", required: true }, { name: "email", label: "Email", kind: "email", required: true },
     { name: "gender", label: "Gender", kind: "select", options: ["Male", "Female"], required: true },
     { name: "telephone", label: "Telephone" }, { name: "address", label: "Address", kind: "textarea" },
@@ -151,7 +153,7 @@ export const modulePages: ModuleConfig[] = [
     { name: "status", label: "Status", kind: "select", options: ["Applied", "Screening", "Interview", "Selected", "Rejected", "Hired", "Withdrawn"] },
   ] },
   { path: "/recruitment/applications", label: "Applications", group: "Operations", description: "Track applications through screening, interview and selection.", table: "recruitment_applications", titleField: "stage", columns: ["applicant_id", "vacancy_id", "application_date", "stage", "status"], allowDelete: true, fields: [
-    { name: "applicant_id", label: "Applicant record ID", required: true }, { name: "vacancy_id", label: "Vacancy record ID", required: true },
+    { name: "applicant_id", label: "Applicant", kind: "lookup", lookup: "applicant", required: true }, { name: "vacancy_id", label: "Vacancy", kind: "lookup", lookup: "vacancy", required: true },
     { name: "application_date", label: "Application date", kind: "date", required: true },
     { name: "stage", label: "Stage", kind: "select", options: ["Applied", "Screening", "Interview", "Selected", "Hired"] },
     { name: "screening_notes", label: "Screening notes", kind: "textarea" }, { name: "interview_notes", label: "Interview notes", kind: "textarea" },
@@ -265,12 +267,12 @@ export const modulePages: ModuleConfig[] = [
     { name: "isactive", label: "Active", kind: "checkbox" },
   ] },
   { path: "/organization/parishes", label: "Parishes", group: "Administration", description: "Manage parishes within their archdeaconries.", table: "parishes", titleField: "name", columns: ["name", "archdeaconry_id", "region", "order_num", "isactive"], fields: [
-    { name: "name", label: "Name", required: true }, { name: "archdeaconry_id", label: "Archdeaconry ID", required: true },
+    { name: "name", label: "Name", required: true }, { name: "archdeaconry_id", label: "Archdeaconry", kind: "lookup", lookup: "archdeaconry", required: true },
     { name: "region", label: "Region" }, { name: "order_num", label: "Display order", kind: "number" },
     { name: "isactive", label: "Active", kind: "checkbox" },
   ] },
   { path: "/organization/local-churches", label: "Local churches", group: "Administration", description: "Manage local churches and parish relationships.", table: "local_churches", titleField: "name", columns: ["name", "parish_id", "order_num", "isactive"], fields: [
-    { name: "name", label: "Name", required: true }, { name: "parish_id", label: "Parish ID", required: true },
+    { name: "name", label: "Name", required: true }, { name: "parish_id", label: "Parish", kind: "lookup", lookup: "parish", required: true },
     { name: "order_num", label: "Display order", kind: "number" }, { name: "isactive", label: "Active", kind: "checkbox" },
     { name: "issensitive", label: "Sensitive", kind: "checkbox" },
   ] },
@@ -286,7 +288,7 @@ export const modulePages: ModuleConfig[] = [
   ] },
   { path: "/organization/positions", label: "Positions", group: "Administration", description: "Manage approved organizational positions.", table: "positions", titleField: "title", columns: ["code", "title", "department_id", "grade_id", "isactive"], fields: [
     { name: "code", label: "Code", required: true }, { name: "title", label: "Title", required: true },
-    { name: "department_id", label: "Department ID" }, { name: "grade_id", label: "Grade ID" },
+    { name: "department_id", label: "Department", kind: "lookup", lookup: "department" }, { name: "grade_id", label: "Grade", kind: "lookup", lookup: "grade" },
     { name: "description", label: "Description", kind: "textarea" },
     { name: "issupervisory", label: "Supervisory", kind: "checkbox" }, { name: "isactive", label: "Active", kind: "checkbox" },
   ] },
@@ -318,7 +320,7 @@ export const modulePages: ModuleConfig[] = [
   { path: "/admin/sessions", label: "Session management", group: "Administration", description: "Review active sign-in sessions and revoke access when needed.", table: "user_sessions", titleField: "device_info", columns: ["user_id", "device_info", "ip_address", "isactive", "expiresat", "lastactivityat"], readOnly: true },
   { path: "/admin/scopes", label: "User scopes", group: "Administration", description: "Assign temporary or permanent organizational scopes to provisioned accounts.", table: "user_scopes", titleField: "scope_name", columns: ["user_id", "scope_type", "scope_name", "expiresAt", "isActive"], fields: [
     { name: "user_id", label: "Account user ID", required: true },
-    { name: "scope_id", label: "Organization record ID", required: true },
+    { name: "scope_id", label: "Organization scope", kind: "lookup", lookup: "scope", required: true },
     { name: "scope_type", label: "Scope type", kind: "select", required: true, options: ["Archdeaconry", "Parish", "Institution", "Department", "Board", "PersonnelDomain"] },
     { name: "scope_name", label: "Scope name", required: true },
     { name: "purpose", label: "Purpose" },

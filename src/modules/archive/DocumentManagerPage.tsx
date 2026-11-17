@@ -8,6 +8,7 @@ import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { auditService } from "@/core/audit/service";
 import { createDocumentDownloadUrl, uploadDocument, validateDocumentFile } from "@/core/documents/documentService";
 import { useAuth } from "@/modules/core/auth/context";
+import SearchableSelect from "@/components/forms/SearchableSelect";
 
 interface DocumentRecord extends Record<string, unknown> {
   id: string;
@@ -204,7 +205,7 @@ export default function DocumentManagerPage() {
           </label>
           <div className="document-upload-fields">
             <label className="field">Document type<input required value={documentType} onChange={(event) => setDocumentType(event.target.value)} placeholder="Appointment letter, certificate…" disabled={!online || uploading} /></label>
-            <label className="field">Linked employee {employees.length ? <select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} disabled={!online || uploading}><option value="">No employee link</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.employee_number} · {employee.first_name} {employee.last_name}</option>)}</select> : <input value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} placeholder="Employee UUID (optional)" disabled={!online || uploading} />}</label>
+            <label className="field">Linked employee<SearchableSelect id="document-employee" value={employeeId} options={employees.map((employee) => ({ value: employee.id, label: `${employee.first_name} ${employee.last_name} · ${employee.employee_number}` }))} placeholder="Search employees by name or number…" emptyLabel="No employees are available" disabled={!online || uploading} onChange={setEmployeeId} /></label>
             <label className="field">Access classification<select value={accessLevel} onChange={(event) => setAccessLevel(event.target.value as typeof accessLevel)} disabled={!online || uploading}><option value="Private">Private</option><option value="DiocesanHR">Diocesan HR</option><option value="BoardLevel">Board level</option></select></label>
           </div>
           <div className="document-upload-footer"><p>Uploaded files are stored privately. Opening a file requires authorization and is logged.</p><button type="submit" className="button button-primary" disabled={!online || uploading || !file || !documentType.trim()}><Icon name="upload" size={15} />{uploading ? "Uploading and registering…" : "Upload and register"}</button></div>
