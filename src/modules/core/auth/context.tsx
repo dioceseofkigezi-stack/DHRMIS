@@ -10,10 +10,28 @@ interface AuthContextValue {
   roles: string[];
   personnelDomains: PersonnelDomain[];
   workspaceDomainCodes: string[];
+  roleUserId: string | null;
   roleLoading: boolean;
   roleError: string;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+}
+
+interface CurrentWorkspaceRecord {
+  role_code: string;
+  domain_id: string | null;
+  domain_code: string | null;
+  domain_name: string | null;
+  board_id: string | null;
+  is_secretariat: boolean | null;
+}
+
+interface UserRoleRecord {
+  role_code: string;
+  isactive: boolean | null;
+  issuspended: boolean | null;
+  accountexpiry: string | null;
+  lockeduntil: string | null;
 }
 
 function sessionIdFromToken(accessToken: string) {
@@ -56,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<string[]>([]);
   const [personnelDomains, setPersonnelDomains] = useState<PersonnelDomain[]>([]);
   const [workspaceDomainCodes, setWorkspaceDomainCodes] = useState<string[]>([]);
+  const [roleUserId, setRoleUserId] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(Boolean(supabase));
   const [roleError, setRoleError] = useState("");
 
@@ -86,116 +105,108 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    async function loadRoles() {
+    async function loadCurrentWorkspace() {
       setRoleError("");
       setRoles([]);
       setPersonnelDomains([]);
       setWorkspaceDomainCodes([]);
+      setRoleUserId(null);
       if (!session || !supabase) {
         setRoleLoading(false);
         return;
       }
+      const currentSession = session;
+      const supabaseClient = supabase;
 
       setRoleLoading(true);
+      async function recoverSystemAdminRole() {
+        try {
+          const roleResult = await supabaseClient.from("user_roles")
+            .select("role_code, isactive, issuspended, accountexpiry, lockeduntil")
+            .eq("user_id", currentSession.user.id);
+          if (!active || roleResult.error) return false;
+
+          const now = Date.now();
+          const activeRoles = ((roleResult.data ?? []) as UserRoleRecord[]).filter((role) =>
+            role.isactive === true &&
+            role.issuspended !== true &&
+            (!role.accountexpiry || Date.parse(role.accountexpiry) > now) &&
+            (!role.lockeduntil || Date.parse(role.lockeduntil) <= now),
+          );
+          if (activeRoles.length !== 1 || activeRoles[0].role_code !== "SUPER_SYSTEM_ADMIN") return false;
+
+          setRoles(["SUPER_SYSTEM_ADMIN"]);
+          setPersonnelDomains([]);
+          setWorkspaceDomainCodes([]);
+          setRoleError("");
+          setRoleUserId(currentSession.user.id);
+          setRoleLoading(false);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
       try {
-        await recordAuthSession(session);
+        await recordAuthSession(currentSession);
       } catch {
+        if (await recoverSystemAdminRole()) return;
         if (active) {
           setRoleError("Your sign-in session could not be recorded. Sign out and contact your system administrator.");
           setRoleLoading(false);
+          setRoleUserId(currentSession.user.id);
         }
         return;
       }
-      const roleResult = await supabase.from("user_roles")
-        .select("role_code, isactive, issuspended, accountexpiry, lockeduntil")
-        .eq("user_id", session.user.id);
+      const workspaceResult = await supabaseClient.rpc("get_current_workspace");
 
       if (!active) return;
-      if (roleResult.error) {
-        setRoleError("Unable to load your system roles.");
-        setRoleLoading(false);
-        return;
-      }
-
-      const now = Date.now();
-      const activeRoles = (roleResult.data ?? []).filter((role) =>
-        role.isactive === true &&
-        role.issuspended !== true &&
-        (!role.accountexpiry || Date.parse(role.accountexpiry) > now) &&
-        (!role.lockeduntil || Date.parse(role.lockeduntil) <= now),
-      );
-      setRoles(activeRoles.map((role) => role.role_code));
-
-      if (activeRoles.some((role) => role.role_code === "SUPER_SYSTEM_ADMIN")) {
-        setPersonnelDomains([]);
-        setWorkspaceDomainCodes([]);
-        setRoleLoading(false);
-        return;
-      }
-
-      const [scopeResult, domainResult] = await Promise.all([
-        supabase.from("user_scopes")
-          .select("scope_type, scope_id, isactive, expiresat")
-          .eq("user_id", session.user.id),
-        supabase.from("personnel_domains")
-          .select("id, code, name, board_id, is_secretariat")
-          .eq("is_active", true),
-      ]);
-
-      if (!active) return;
-      if (scopeResult.error || domainResult.error) {
-        setRoleError("Unable to load your organizational access scopes.");
-        setRoleLoading(false);
-        return;
-      }
-
-      const activeScopes = (scopeResult.data ?? []).filter((scope) =>
-        scope.isactive === true && (!scope.expiresat || Date.parse(scope.expiresat) > now),
-      );
-      const domains: PersonnelDomain[] = (domainResult.data ?? []).map((domain) => ({
-        id: domain.id,
-        code: domain.code,
-        name: domain.name,
-        boardId: domain.board_id,
-        isSecretariat: domain.is_secretariat,
-      }));
-      setPersonnelDomains(domains);
-
-      const boardScopeIds = new Set(activeScopes.filter((scope) => scope.scope_type === "Board").map((scope) => scope.scope_id));
-      const personnelDomainScopeIds = new Set(activeScopes.filter((scope) => scope.scope_type === "PersonnelDomain").map((scope) => scope.scope_id));
-      const departmentScopeIds = activeScopes.filter((scope) => scope.scope_type === "Department").map((scope) => scope.scope_id);
-      const institutionScopeIds = activeScopes.filter((scope) => scope.scope_type === "Institution").map((scope) => scope.scope_id);
-      const legacyBoardIds = new Set<string>();
-
-      if (departmentScopeIds.length || institutionScopeIds.length) {
-        const [departmentResult, institutionResult] = await Promise.all([
-          departmentScopeIds.length
-            ? supabase.from("departments").select("id, board_id").in("id", departmentScopeIds)
-            : Promise.resolve({ data: [], error: null }),
-          institutionScopeIds.length
-            ? supabase.from("institutions").select("id, board_id").in("id", institutionScopeIds)
-            : Promise.resolve({ data: [], error: null }),
-        ]);
+      if (workspaceResult.error) {
+        if (await recoverSystemAdminRole()) return;
         if (!active) return;
-        if (departmentResult.error || institutionResult.error) {
-          setRoleError("Unable to load your organizational access scopes.");
+        setRoleError("Unable to load your assigned workspace.");
+        setRoleLoading(false);
+        setRoleUserId(currentSession.user.id);
+        return;
+      }
+
+      const workspaces = (workspaceResult.data ?? []) as CurrentWorkspaceRecord[];
+      if (workspaces.length === 0 && await recoverSystemAdminRole()) return;
+      if (!active) return;
+      if (workspaces.length > 1) {
+        setRoleError("Your account has more than one active workspace assignment. Contact your system administrator.");
+        setRoleLoading(false);
+        setRoleUserId(currentSession.user.id);
+        return;
+      }
+
+      const currentWorkspace = workspaces[0];
+      if (currentWorkspace) {
+        if (currentWorkspace.role_code !== "SUPER_SYSTEM_ADMIN" &&
+            (!currentWorkspace.domain_id || !currentWorkspace.domain_code || currentWorkspace.domain_name === null || currentWorkspace.is_secretariat === null)) {
+          setRoleError("Your assigned workspace could not be resolved.");
           setRoleLoading(false);
+          setRoleUserId(currentSession.user.id);
           return;
         }
-        for (const row of [...departmentResult.data ?? [], ...institutionResult.data ?? []]) {
-          if (row.board_id) legacyBoardIds.add(row.board_id);
+        setRoles([currentWorkspace.role_code]);
+        if (currentWorkspace.domain_id && currentWorkspace.domain_code && currentWorkspace.domain_name !== null && currentWorkspace.is_secretariat !== null) {
+          const domain: PersonnelDomain = {
+            id: currentWorkspace.domain_id,
+            code: currentWorkspace.domain_code,
+            name: currentWorkspace.domain_name,
+            boardId: currentWorkspace.board_id,
+            isSecretariat: currentWorkspace.is_secretariat,
+          };
+          setPersonnelDomains([domain]);
+          setWorkspaceDomainCodes([domain.code]);
         }
       }
-
-      const domainCodes = domains.filter((domain) =>
-        personnelDomainScopeIds.has(domain.id) || Boolean(domain.boardId && (boardScopeIds.has(domain.boardId) || legacyBoardIds.has(domain.boardId))),
-      ).map((domain) => domain.code);
-      setWorkspaceDomainCodes([...new Set(domainCodes)]);
-
+      setRoleUserId(currentSession.user.id);
       setRoleLoading(false);
     }
 
-    void loadRoles();
+    void loadCurrentWorkspace();
     return () => { active = false; };
   }, [session]);
 
@@ -205,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     roles,
     personnelDomains,
     workspaceDomainCodes,
+    roleUserId,
     roleLoading,
     roleError,
     signIn: async (email, password) => {
@@ -228,7 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signOut({ scope: "local" });
       if (error) throw error;
     },
-  }), [session, loading, roles, personnelDomains, workspaceDomainCodes, roleLoading, roleError]);
+  }), [session, loading, roles, personnelDomains, workspaceDomainCodes, roleUserId, roleLoading, roleError]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
+import { getWorkspaceLandingPath } from "@/core/organizational-scope/workspaces";
 
 function friendlySignInError(reason: unknown) {
   if (reason && typeof reason === "object" && "message" in reason && typeof reason.message === "string") {
@@ -14,9 +15,8 @@ function friendlySignInError(reason: unknown) {
 }
 
 export default function LoginPage() {
-  const { session, loading, signIn } = useAuth();
+  const { session, loading, roles, workspaceDomainCodes, roleUserId, roleLoading, signIn } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +24,10 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (loading) return <div className="screen-state">Checking your session…</div>;
-  if (session) return <Navigate to="/dashboard" replace />;
+  if (session && (roleLoading || roleUserId !== session.user.id)) {
+    return <div className="screen-state"><span className="loading-spinner" /> Loading your workspace...</div>;
+  }
+  if (session) return <Navigate to={getWorkspaceLandingPath(roles, workspaceDomainCodes)} replace />;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,8 +35,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await signIn(email.trim(), password);
-      const destination = (location.state as { from?: string } | null)?.from ?? "/dashboard";
-      navigate(destination, { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (reason) {
       setError(friendlySignInError(reason));
     } finally {

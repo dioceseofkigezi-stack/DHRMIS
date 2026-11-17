@@ -119,6 +119,15 @@ export function canAccessWorkspace(
   return roles.includes(workspace.roleCode) && domainCodes.includes(workspace.code);
 }
 
+export function getAssignedWorkspace(roles: string[], domainCodes: string[]) {
+  return personnelWorkspaces.find((workspace) => canAccessWorkspace(workspace, roles, domainCodes));
+}
+
+export function getWorkspaceLandingPath(roles: string[], domainCodes: string[]) {
+  const assignedWorkspace = getAssignedWorkspace(roles, domainCodes);
+  return assignedWorkspace ? `/${assignedWorkspace.slug}` : "/dashboard";
+}
+
 export function canManageWorkspacePersonnel(workspace: PersonnelWorkspace, roles: string[]) {
   return !roles.includes("SUPER_SYSTEM_ADMIN") && roles.includes(workspace.roleCode);
 }
