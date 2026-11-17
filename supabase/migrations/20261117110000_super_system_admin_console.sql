@@ -123,7 +123,7 @@ BEGIN
       assignment.issuspended,
       assignment.accountexpiry,
       assignment.lockeduntil,
-      assignment.lastloginat,
+      auth_user.last_sign_in_at AS lastloginat,
       auth_user.created_at AS createdat,
       auth_user.email_confirmed_at,
       CASE

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
+import { ThemeControl } from "@/components/ui/ThemeControl";
 
 export default function PasswordRecoveryPage({ mode }: { mode: "request" | "reset" }) {
   const { session, loading } = useAuth();
@@ -55,6 +56,7 @@ export default function PasswordRecoveryPage({ mode }: { mode: "request" | "rese
 
   return (
     <main className="login-screen">
+      <ThemeControl className="login-theme-control" />
       <section className="login-card" aria-labelledby="recovery-title">
         <div className="brand-lockup"><img className="brand-symbol" src="/LOGO.PNG" alt="" /><span>DHRMIS</span></div>
         <p className="eyebrow">ACCOUNT SECURITY</p>

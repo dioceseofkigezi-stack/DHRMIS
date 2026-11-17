@@ -301,7 +301,8 @@ export const modulePages: ModuleConfig[] = [
   { path: "/security", label: "Security events", group: "Administration", description: "Review security events permitted by your account.", table: "security_event", titleField: "event_type", columns: ["created_at", "event_type", "severity", "component", "acknowledged", "resolved"], readOnly: true },
   { path: "/admin/roles", label: "Roles & permissions", group: "Administration", description: "Review the canonical roles and permission assignments enforced by the system." },
   { path: "/admin/reports", label: "Administrative reports", group: "Administration", description: "Review summary reports for accounts, sessions, security and system activity." },
-  { path: "/settings", label: "System settings", group: "Administration", description: "Review and update system configuration allowed by your role.", table: "system_config", titleField: "config_key", columns: ["config_key", "config_section", "description", "is_sensitive", "is_valid"], fields: [
+  { path: "/admin/monitoring", label: "System health & monitoring", group: "Administration", description: "Check platform service health and review failed system activity." },
+  { path: "/settings", label: "System settings", group: "Administration", description: "Review and update system configuration allowed by your role.", table: "system_config", titleField: "config_key", columns: ["config_key", "config_section", "description", "is_sensitive", "is_valid", "last_modified_at"], fields: [
     { name: "config_key", label: "Configuration key", required: true }, { name: "config_value", label: "Configuration value", required: true, kind: "textarea" },
     { name: "config_section", label: "Section", required: true }, { name: "description", label: "Description", kind: "textarea" },
     { name: "is_sensitive", label: "Sensitive value (administrator-only visibility)", kind: "checkbox" },
@@ -341,7 +342,7 @@ const businessRoles = [
   "LAND_FINANCE_BOARD_USER", "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER",
 ];
 const systemAdminOnlyPaths = new Set([
-  "/admin/users", "/admin/scopes", "/admin/sessions", "/admin/roles", "/admin/reports", "/settings", "/security", "/audit",
+  "/admin/users", "/admin/scopes", "/admin/sessions", "/admin/roles", "/admin/reports", "/admin/monitoring", "/settings", "/security", "/audit",
 ]);
 const platformAdminRoles = ["SUPER_SYSTEM_ADMIN"];
 const financeRoles = ["LAND_FINANCE_BOARD_USER"];

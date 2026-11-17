@@ -118,14 +118,14 @@ Deno.serve(async (request: Request) => {
     return respond(502, { message: "The invitation email could not be sent. Check the project email settings and try again." });
   }
 
-  const { error: assignmentError } = await adminClient.from("user_roles").insert({
+  const { data: assignment, error: assignmentError } = await adminClient.from("user_roles").insert({
     user_id: invitedUser.id,
     role_code: roleCode,
     permissions: [],
     scopes: [],
     isactive: true,
     issuspended: false,
-  });
+  }).select("id").single();
   if (assignmentError) {
     await adminClient.auth.admin.deleteUser(invitedUser.id);
     if (assignmentError.code === "23505") {
@@ -134,5 +134,19 @@ Deno.serve(async (request: Request) => {
     return respond(500, { message: "The account could not be assigned its initial role. The registration was cancelled." });
   }
 
-  return respond(201, { userId: invitedUser.id, message: "Invitation sent." });
+  const actorName = callerData.user.user_metadata?.full_name || callerData.user.user_metadata?.name || callerData.user.email || null;
+  const { data: auditEntry, error: auditError } = assignment
+    ? await adminClient.from("audit_log").update({
+      user_id: callerData.user.id,
+      user_name: actorName,
+      action: "USER_INVITED",
+      purpose: `Invited ${email} with role ${roleCode}.`,
+    }).eq("record_id", assignment.id).eq("module", "user_roles").is("user_id", null).select("id").maybeSingle()
+    : { data: null, error: new Error("The role assignment audit record is unavailable.") };
+
+  return respond(201, {
+    userId: invitedUser.id,
+    message: "Invitation sent.",
+    auditLogged: !auditError && Boolean(auditEntry),
+  });
 });

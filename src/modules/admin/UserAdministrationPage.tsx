@@ -124,11 +124,23 @@ export default function UserAdministrationPage() {
     try {
       if (action === "password-reset") {
         if (!account.email) throw new Error("This account has no email address for password recovery.");
+        if (!session?.user.id) throw new Error("Your active administrator session could not be verified.");
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(account.email, {
           redirectTo: `${window.location.origin}/reset-password`,
         });
         if (resetError) throw resetError;
-        toast("Password reset email sent.", "success");
+        const { error: securityLogError } = await supabase.from("security_event").insert({
+          user_id: session.user.id,
+          event_type: "ADMIN_PASSWORD_RESET_REQUESTED",
+          severity: "Informational",
+          component: "Account security",
+          description: "The platform administrator requested a password reset email for another account.",
+          details: { target_user_id: account.user_id },
+        });
+        if (securityLogError) {
+          setError("The password reset email was sent, but its security event could not be recorded.");
+          toast("Password reset email sent, but security event logging failed.", "info");
+        } else toast("Password reset email sent.", "success");
       } else if (action === "assign-role") {
         if (!roleCode) throw new Error("Choose an active role first.");
         const { error: assignError } = await supabase.from("user_roles").insert({

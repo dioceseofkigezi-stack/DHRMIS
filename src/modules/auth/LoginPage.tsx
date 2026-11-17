@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
 import { getWorkspaceLandingPath } from "@/core/organizational-scope/workspaces";
+import { ThemeControl } from "@/components/ui/ThemeControl";
 
 function friendlySignInError(reason: unknown) {
   if (reason && typeof reason === "object" && "message" in reason && typeof reason.message === "string") {
@@ -45,6 +46,7 @@ export default function LoginPage() {
 
   return (
     <main className="login-screen">
+      <ThemeControl className="login-theme-control" />
       <section className="login-card" aria-labelledby="login-title">
         <div className="brand-lockup"><img className="brand-symbol" src="/LOGO.PNG" alt="" /><span>DHRMIS</span></div>
         <p className="eyebrow">DIOCESE OF KIGEZI</p>

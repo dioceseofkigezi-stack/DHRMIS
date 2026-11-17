@@ -32,6 +32,7 @@ const links = [
   ["/admin/sessions", "Sessions & devices", "Inspect recorded devices and revoke active sessions.", "shield"],
   ["/security", "Security events", "Review and resolve system security alerts.", "security"],
   ["/audit", "Audit activity", "Review administrative activity and sensitive-read records.", "assignment"],
+  ["/admin/monitoring", "System health & monitoring", "Check core services and investigate failed system activity.", "monitor"],
   ["/settings", "System configuration", "Manage configuration values protected by database policies.", "settings"],
   ["/admin/reports", "Administrative reports", "View account, session, security and audit summaries.", "chart"],
 ] as const;

@@ -35,7 +35,7 @@ export default function UserRegistrationPanel({ online, onSuccess }: { online: b
     }
     setSubmitting(true);
     try {
-      const { error: inviteError } = await supabase.functions.invoke("register-user", {
+      const { data: inviteData, error: inviteError } = await supabase.functions.invoke("register-user", {
         body: { fullName: fullName.trim(), email: email.trim(), roleCode },
       });
       if (inviteError) {
@@ -53,7 +53,10 @@ export default function UserRegistrationPanel({ online, onSuccess }: { online: b
         throw new Error(message);
       }
       const selectedRole = roleOptions.find((role) => role.code === roleCode)?.label ?? roleCode;
-      setSuccess(`Invitation sent to ${email.trim()} with the ${selectedRole} role. After accepting it, the user can use “Forgot password” on the sign-in page to set a password.`);
+      const auditWarning = inviteData && typeof inviteData === "object" && "auditLogged" in inviteData && inviteData.auditLogged === false
+        ? " The invitation was sent, but the audit entry could not be confirmed."
+        : "";
+      setSuccess(`Invitation sent to ${email.trim()} with the ${selectedRole} role. After accepting it, the user can use “Forgot password” on the sign-in page to set a password.${auditWarning}`);
       setFullName("");
       setEmail("");
       setRoleCode("");

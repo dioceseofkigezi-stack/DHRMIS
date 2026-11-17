@@ -1,7 +1,7 @@
 :root {
   font-family: "DM Sans", "Segoe UI", sans-serif;
-  color: #17233f;
-  background: #fff;
+  color: var(--ink);
+  background: var(--page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -19,11 +19,12 @@
   --muted: #738096;
   --border: #e7eaf2;
   --surface: #fff;
+  --page: #fff;
 }
 
 * { box-sizing: border-box; }
 .system-icon { display: block; flex: 0 0 auto; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--page); }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .62; }
@@ -34,7 +35,7 @@ h1, h2, .brand-name strong { font-family: Manrope, "Segoe UI", sans-serif; }
 .app-shell { min-height: 100vh; }
 .sidebar {
   position: fixed; inset: 0 auto 0 0; z-index: 20; display: flex; flex-direction: column;
-  width: 252px; padding: 22px 14px 14px; border-right: 1px solid var(--border); color: var(--ink); background: #fff;
+  width: 252px; padding: 22px 14px 14px; border-right: 1px solid var(--border); color: var(--ink); background: var(--surface);
 }
 .brand-lockup { display: flex; align-items: center; gap: 11px; }
 .sidebar-brand { padding: 0 9px 24px; color: var(--brand); }
@@ -506,9 +507,22 @@ tbody tr:hover { background: #fbfcfb; }
 .admin-report-card > strong { color: #2d4235; font-size: 23px; letter-spacing: -.04em; }
 .admin-report-card > .muted { min-height: 27px; margin: 0; font-size: 9px; line-height: 1.5; }
 .admin-report-card .eyebrow { margin: 0 0 4px; }
+.admin-health-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
+.admin-health-card { display: grid; justify-items: start; gap: 10px; padding: 14px; }
+.admin-health-card > div { display: flex; align-items: center; gap: 9px; }
+.admin-health-card h2 { margin: 0; color: #3c4f43; font-size: 11px; }
+.admin-health-card .eyebrow { margin: 0 0 3px; }
+.admin-health-card > small { color: #829087; font-size: 8px; }
+.admin-health-symbol { display: grid; width: 33px; height: 33px; place-items: center; border-radius: 9px; color: #52715d; background: #edf4ef; }
+.admin-monitor-summary { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid #e7ece8; border-radius: 9px; color: #77847b; background: #fff; font-size: 9px; }
+.admin-monitor-summary > div { margin-right: auto; }
+.admin-monitor-summary > div strong { color: #34483b; font-size: 15px; }
+.admin-monitor-summary > .text-link { white-space: nowrap; }
+.admin-monitor-summary > span { white-space: nowrap; }
 
 @media (max-width: 1100px) {
   .admin-metric-grid, .admin-report-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-dashboard-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
@@ -524,11 +538,176 @@ tbody tr:hover { background: #fbfcfb; }
   .admin-report-controls .admin-filter-controls .search-box { flex-basis: 100%; }
 }
 @media (max-width: 480px) {
-  .admin-metric-grid, .admin-report-grid { grid-template-columns: 1fr; }
+  .admin-metric-grid, .admin-report-grid, .admin-health-grid { grid-template-columns: 1fr; }
   .admin-function-card { min-height: 70px; }
   .admin-activity-list li { grid-template-columns: 8px minmax(0, 1fr); }
   .admin-activity-list time { grid-column: 2; text-align: left; }
   .admin-heading-actions { flex-wrap: wrap; }
   .admin-filter-controls > * { flex: 1 1 100%; }
   .admin-filter-label select, .admin-filter-label input { width: 100%; }
+  .admin-monitor-summary { align-items: flex-start; flex-direction: column; gap: 6px; }
+}
+
+/* System, light, and dark theme controls */
+.theme-control { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); background: var(--surface); }
+.theme-control select { max-width: 76px; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 10px; }
+.theme-control:focus-within { border-color: var(--brand-accent); box-shadow: 0 0 0 3px rgb(1 71 107 / 10%); }
+.login-screen { position: relative; }
+.login-theme-control { position: absolute; top: 18px; right: 18px; }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --brand: #9ba9ff;
+  --brand-accent: #79c3dd;
+  --brand-soft: #252f49;
+  --action: #e77740;
+  --action-hover: #cf6130;
+  --danger: #ef766d;
+  --danger-hover: #d85f57;
+  --success: #4bb879;
+  --success-soft: #183625;
+  --success-border: #285b3a;
+  --ink: #fff;
+  --muted: #c8c8ce;
+  --border: #2d3b4d;
+  --surface: #030306;
+  --page: #030306;
+}
+
+:root[data-theme="dark"] body { background: var(--page); }
+:root[data-theme="dark"] .sidebar,
+:root[data-theme="dark"] .metric-card,
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .workspace-card,
+:root[data-theme="dark"] .employee-profile-header,
+:root[data-theme="dark"] .modal-card,
+:root[data-theme="dark"] .modal-heading,
+:root[data-theme="dark"] .modal-actions,
+:root[data-theme="dark"] .confirm-card,
+:root[data-theme="dark"] .login-card,
+:root[data-theme="dark"] .search-results,
+:root[data-theme="dark"] .search-result,
+:root[data-theme="dark"] .profile-menu-panel,
+:root[data-theme="dark"] .notification-panel,
+:root[data-theme="dark"] .notification-item,
+:root[data-theme="dark"] .notification-trigger,
+:root[data-theme="dark"] .toast,
+:root[data-theme="dark"] .searchable-select-options,
+:root[data-theme="dark"] .searchable-select-option,
+:root[data-theme="dark"] .admin-health-pill,
+:root[data-theme="dark"] .admin-health-card,
+:root[data-theme="dark"] .admin-monitor-summary,
+:root[data-theme="dark"] .admin-metric-card,
+:root[data-theme="dark"] .admin-function-card,
+:root[data-theme="dark"] .admin-role-card { background-color: var(--surface); }
+:root[data-theme="dark"] .topbar { background: rgb(3 3 6 / 94%); }
+:root[data-theme="dark"] .panel-accent { background: linear-gradient(155deg, #030306 20%, #101015 100%); }
+:root[data-theme="dark"] .login-screen { background: radial-gradient(ellipse at 82% 18%, #111116 0, transparent 34%), var(--page); }
+:root[data-theme="dark"] .admin-role-card-platform { background: linear-gradient(145deg, #101015, #08080c); }
+:root[data-theme="dark"] .notification-item-unread { background: #101015; }
+:root[data-theme="dark"] .nav-link:hover,
+:root[data-theme="dark"] .signout-button:hover { background: #121218; }
+:root[data-theme="dark"] .nav-link-active,
+:root[data-theme="dark"] .nav-link-active:hover { color: #fff; background: #222229; }
+
+:root[data-theme="dark"] :is(h1, h2, h3, strong, td, dd, .sidebar-protection, .breadcrumb strong, .page-heading h1, .metric-value, .panel-heading h2, .panel-accent h2, .quick-link strong, .workspace-card-copy strong, .dashboard-note h2, .registration-heading h2, .records-toolbar strong, .empty-state h2, .modal-heading h2, .field, .form-stack label, .search-box input, .global-search-input input, .search-result, .profile-menu-name, .profile-menu-panel strong, .employee-profile-identity h1, .profile-summary-card h2, .profile-panel-heading h2, .profile-summary-card dd, .profile-data-panel td, .admin-metric-card strong, .admin-function-card strong, .admin-activity-list strong, .admin-capability-note strong, .admin-table-toolbar strong, .admin-table-state strong, .admin-data-table td, .admin-role-name, .admin-role-card h3, .admin-report-controls h2, .admin-report-card h3, .admin-report-card > strong, .document-upload-panel > summary, .admin-monitor-summary > div strong) { color: var(--ink); }
+:root[data-theme="dark"] :is(.brand-name small, .nav-caption, .sidebar-protection small, .account-name small, .breadcrumb, .breadcrumb-separator, .topbar-date, .muted, .metric-label, .metric-hint, .quick-link small, .quick-link-arrow, .workspace-card-copy small, .workspace-card-arrow, .access-note, .records-toolbar, th, .table-state, .empty-state, .notice-dismiss, .search-message, .search-result-copy small, .profile-menu-panel small, .field-help, .profile-breadcrumb, .profile-tab, .profile-summary-card dt, .profile-panel-heading span, .profile-empty, .pagination-bar, .notification-copy small, .notification-copy time, .notification-empty, .document-drop-zone small, .document-upload-footer p, .admin-metric-card > div > span, .admin-metric-card small, .admin-function-card small, .admin-activity-list small, .admin-activity-list time, .admin-inline-empty, .admin-inline-empty span, .admin-muted-state, .admin-capability-note, .admin-access-explainer, .admin-table-toolbar, .admin-filter-label, .admin-table-state, .admin-data-table td > small, .admin-data-table code, .admin-role-card code, .admin-role-scope, .admin-role-card footer, .admin-report-controls > div:first-child .muted, .admin-health-card, .admin-monitor-summary) { color: var(--muted); }
+:root[data-theme="dark"] .nav-link,
+:root[data-theme="dark"] .text-button,
+:root[data-theme="dark"] .text-link,
+:root[data-theme="dark"] .profile-breadcrumb a,
+:root[data-theme="dark"] .profile-tab-active,
+:root[data-theme="dark"] .record-link,
+:root[data-theme="dark"] .password-toggle,
+:root[data-theme="dark"] .login-utility-row a,
+:root[data-theme="dark"] .login-footer a { color: var(--brand-accent); }
+
+:root[data-theme="dark"] :is(.button-secondary, .search-box, .global-search-input, .notification-trigger, .admin-function-card, .admin-health-pill, .admin-filter-label select, .admin-filter-label input, .admin-role-edit select, .field input:not([type="checkbox"]), .field select, .field textarea, .login-card input, .searchable-select-options, .searchable-select-option, .checkbox-control) { border-color: var(--border); color: var(--ink); background-color: #0b0b10; }
+:root[data-theme="dark"] .button-secondary:hover:not(:disabled),
+:root[data-theme="dark"] .notification-trigger:hover { border-color: #5a5a64; background: #16161d; }
+:root[data-theme="dark"] .nav-icon,
+:root[data-theme="dark"] .account-row,
+:root[data-theme="dark"] .sidebar-bottom,
+:root[data-theme="dark"] .records-toolbar,
+:root[data-theme="dark"] th,
+:root[data-theme="dark"] td,
+:root[data-theme="dark"] .modal-heading,
+:root[data-theme="dark"] .modal-actions,
+:root[data-theme="dark"] .notification-panel-heading,
+:root[data-theme="dark"] .notification-item,
+:root[data-theme="dark"] .profile-tabs,
+:root[data-theme="dark"] .profile-summary-card dl div,
+:root[data-theme="dark"] .pagination-bar,
+:root[data-theme="dark"] .admin-table-toolbar,
+:root[data-theme="dark"] .admin-data-table th,
+:root[data-theme="dark"] .admin-data-table td,
+:root[data-theme="dark"] .admin-log-tabs,
+:root[data-theme="dark"] .admin-role-card footer { border-color: var(--border); }
+:root[data-theme="dark"] th,
+:root[data-theme="dark"] .admin-data-table th { background: #101015; }
+:root[data-theme="dark"] tbody tr:hover,
+:root[data-theme="dark"] .quick-link:hover,
+:root[data-theme="dark"] .search-result:hover,
+:root[data-theme="dark"] .search-result:focus-visible,
+:root[data-theme="dark"] .notification-item:hover,
+:root[data-theme="dark"] .admin-function-card:hover { background: #16161d; }
+:root[data-theme="dark"] .quick-link,
+:root[data-theme="dark"] .admin-activity-list li { border-color: var(--border); }
+:root[data-theme="dark"] .protection-icon,
+:root[data-theme="dark"] .metric-icon-1,
+:root[data-theme="dark"] .metric-icon-3,
+:root[data-theme="dark"] .quick-link-1,
+:root[data-theme="dark"] .quick-link-4,
+:root[data-theme="dark"] .quick-link-5 { color: #9ed9e8; background: #203443; }
+:root[data-theme="dark"] .avatar,
+:root[data-theme="dark"] .employee-profile-avatar { color: #c1caff; background: #2b3653; }
+:root[data-theme="dark"] .panel-badge,
+:root[data-theme="dark"] .status-pill,
+:root[data-theme="dark"] .admin-status-success { color: #91d5a8; background: #1a3827; }
+:root[data-theme="dark"] .status-pill-neutral,
+:root[data-theme="dark"] .admin-status { color: #b0bdc9; background: #263342; }
+:root[data-theme="dark"] .admin-status-warning { color: #e6c37c; background: #3b3120; }
+:root[data-theme="dark"] .admin-status-danger { color: #f0a39a; background: #3d2929; }
+:root[data-theme="dark"] .admin-function-icon,
+:root[data-theme="dark"] .admin-capability-note > span { color: #a6c9ae; background: #263a30; }
+:root[data-theme="dark"] .admin-metric-icon { color: #a6c9ae; background: #263a30; }
+:root[data-theme="dark"] .admin-metric-icon-1 { color: #c1caff; background: #2b3653; }
+:root[data-theme="dark"] .admin-metric-icon-2 { color: #efad8d; background: #3a2d29; }
+:root[data-theme="dark"] .admin-metric-icon-3 { color: #c1c2d7; background: #303044; }
+:root[data-theme="dark"] .admin-health-symbol { color: #a6c9ae; background: #263a30; }
+:root[data-theme="dark"] .screen-state,
+:root[data-theme="dark"] .confirm-description { color: var(--ink); }
+:root[data-theme="dark"] .text-danger,
+:root[data-theme="dark"] .admin-danger-link { color: #f0a39a !important; }
+:root[data-theme="dark"] .admin-capability-note,
+:root[data-theme="dark"] .admin-access-explainer,
+:root[data-theme="dark"] .admin-confirm-detail { border-color: var(--border); background: #0b0b10; }
+:root[data-theme="dark"] .admin-permission-chip { border-color: var(--border); color: #fff; background: #101015; }
+:root[data-theme="dark"] .admin-permission-sensitive,
+:root[data-theme="dark"] .sensitive-export-warning { border-color: #59472b; color: #e6c37c; background: #30291e; }
+:root[data-theme="dark"] .notice-warning { border-color: #5a4b2b; color: #e6c37c; background: #30291e; }
+:root[data-theme="dark"] .notice-error,
+:root[data-theme="dark"] .global-error,
+:root[data-theme="dark"] .toast-error { border-color: #5a3433; color: #f0a39a; background: #342323; }
+:root[data-theme="dark"] .notice-success,
+:root[data-theme="dark"] .toast-success { border-color: var(--success-border); color: #91d5a8; background: var(--success-soft); }
+:root[data-theme="dark"] .offline-banner { border-color: #59472b; color: #e6c37c; background: #30291e; }
+:root[data-theme="dark"] .network-status { color: #91d5a8; }
+:root[data-theme="dark"] .network-status-offline { color: #f0a39a; }
+:root[data-theme="dark"] .document-drop-zone { border-color: #4b5f9c; color: #c1caff; background: #202a43; }
+:root[data-theme="dark"] .document-drop-zone:hover,
+:root[data-theme="dark"] .document-drop-zone:focus-within { background: #293552; }
+:root[data-theme="dark"] .profile-tab:hover { background: #252f49; }
+:root[data-theme="dark"] .admin-health-degraded { color: #f0a39a; background: #342323; }
+:root[data-theme="dark"] .admin-health-available > span { box-shadow: 0 0 0 3px #1a3827; }
+:root[data-theme="dark"] .searchable-select-option:hover,
+:root[data-theme="dark"] .searchable-select-option.is-active { background: #263747; }
+:root[data-theme="dark"] .loading-spinner { border-color: #35445a; border-top-color: var(--brand-accent); }
+:root[data-theme="dark"] :is(p, span, div, button, a, label, strong, small, h1, h2, h3, th, td, summary, time, dt, dd, li, code, input, select, textarea) { color: #fff !important; }
+:root[data-theme="dark"] .system-icon { color: #fff !important; }
+:root[data-theme="dark"] :is(.button-secondary, .theme-control, .search-box, .global-search-input, .notification-trigger, .admin-filter-label select, .admin-filter-label input, .admin-role-edit select, .field input:not([type="checkbox"]), .field select, .field textarea, .login-card input, .searchable-select-options, .searchable-select-option, .checkbox-control) { background-color: #0b0b10; }
+:root[data-theme="dark"] .modal-backdrop { background: rgb(0 0 0 / 72%); }
+
+@media (max-width: 760px) {
+  .login-theme-control { top: 12px; right: 12px; }
 }
