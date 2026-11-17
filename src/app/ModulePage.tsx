@@ -133,6 +133,7 @@ export default function ModulePage() {
   const [deleting, setDeleting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Row | null>(null);
   const [confirmExport, setConfirmExport] = useState(false);
+  const [confirmSystemConfigSave, setConfirmSystemConfigSave] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(0);
   const [count, setCount] = useState(0);
@@ -342,8 +343,8 @@ export default function ModulePage() {
     setModalOpen(true);
   }
 
-  async function handleSave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleSave(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     if (!online) {
       setError("Reconnect to the network before saving. Confidential changes are not queued offline.");
       return;
@@ -533,7 +534,7 @@ export default function ModulePage() {
         {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
           <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <div className="modal-heading"><div><p className="eyebrow">{pageConfig.label}</p><h2 id="modal-title">{selected ? "Edit record" : "New record"}</h2></div><button type="button" className="icon-button" onClick={() => setModalOpen(false)} aria-label="Close dialog" disabled={saving}><Icon name="close" size={18} /></button></div>
-            <form onSubmit={(event) => void handleSave(event)}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} employeesLoading={employeesLoading} lookups={lookupChoices} lookupsLoading={lookupsLoading} scopeType={String(values.scope_type ?? "")} onChange={(value) => setValues((current) => field.name === "scope_type" ? { ...current, scope_type: value, scope_id: "" } : { ...current, [field.name]: value })} />)}</div>
+            <form onSubmit={(event) => { if (pageConfig.path === "/settings") { event.preventDefault(); setConfirmSystemConfigSave(true); } else void handleSave(event); }}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} employeesLoading={employeesLoading} lookups={lookupChoices} lookupsLoading={lookupsLoading} scopeType={String(values.scope_type ?? "")} onChange={(value) => setValues((current) => field.name === "scope_type" ? { ...current, scope_type: value, scope_id: "" } : { ...current, [field.name]: value })} />)}</div>
               <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || employeesLoading || lookupsLoading || !online}>{saving ? "Saving…" : <><Icon name={selected ? "check" : "plus"} size={14} />{selected ? "Save changes" : "Create record"}</>}</button></div>
             </form>
           </section>
@@ -541,6 +542,7 @@ export default function ModulePage() {
       </>}
       {pendingDelete && <ConfirmDialog title="Delete this record?" confirmLabel="Delete record" destructive busy={deleting} onCancel={() => setPendingDelete(null)} onConfirm={() => void handleDelete()}><p>This action cannot be undone. The database will check your permission before removing the record.</p></ConfirmDialog>}
       {confirmExport && <ConfirmDialog title="Export this page?" confirmLabel="Export CSV" busy={exporting} onCancel={() => setConfirmExport(false)} onConfirm={() => void handleExport()}><p>This downloads up to {rows.length} records currently visible on this page as a CSV file.</p>{pageConfig.readAuditCategory && <p className="sensitive-export-warning">This contains sensitive information and the export will be recorded in the access log.</p>}</ConfirmDialog>}
+      {confirmSystemConfigSave && <ConfirmDialog title={selected ? "Save system configuration changes?" : "Create system configuration entry?"} confirmLabel={selected ? "Save configuration" : "Create entry"} busy={saving} onCancel={() => setConfirmSystemConfigSave(false)} onConfirm={() => { setConfirmSystemConfigSave(false); void handleSave(); }}><p>This changes a platform configuration value. The database will authorize the update and record it in the audit log.</p><p className="sensitive-export-warning">Do not store passwords, service-role keys or other secrets in browser-visible configuration values.</p></ConfirmDialog>}
     </div>
   );
 }

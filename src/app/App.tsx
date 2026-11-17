@@ -16,6 +16,12 @@ const EmployeeProfilePage = lazy(() => import("@/modules/human-resources/Employe
 const DocumentManagerPage = lazy(() => import("@/modules/archive/DocumentManagerPage"));
 const DeathRecordsPage = lazy(() => import("@/modules/death/DeathRecordsPage"));
 const SessionManagementPage = lazy(() => import("@/modules/admin/SessionManagementPage"));
+const UserAdministrationPage = lazy(() => import("@/modules/admin/UserAdministrationPage"));
+const ScopeAdministrationPage = lazy(() => import("@/modules/admin/ScopeAdministrationPage"));
+const RolePermissionsPage = lazy(() => import("@/modules/admin/RolePermissionsPage"));
+const AdminAuditPage = lazy(() => import("@/modules/admin/AdminAuditPage"));
+const SecurityEventsPage = lazy(() => import("@/modules/admin/SecurityEventsPage"));
+const AdminReportsPage = lazy(() => import("@/modules/admin/AdminReportsPage"));
 const SuperSystemAdminSidebar = lazy(() => import("@/components/navigation/sibarRoles/SuperSystemAdminSidebar"));
 const SecretariatSidebar = lazy(() => import("@/components/navigation/sibarRoles/SecretariatSidebar"));
 const MissionBoardSidebar = lazy(() => import("@/components/navigation/sibarRoles/MissionBoardSidebar"));
@@ -104,7 +110,7 @@ export default function App() {
           <div className="breadcrumb"><Link to="/dashboard">Workspace</Link><span className="breadcrumb-separator">/</span><strong>{selectedWorkspace ? `${selectedWorkspace.shortName} · ${location.pathname === `/${selectedWorkspace.slug}` ? "Dashboard" : employeeProfileMatch ? "Employee profile" : activePage?.label ?? "Page"}` : location.pathname === "/dashboard" ? "Overview" : employeeProfileMatch ? "Employee profile" : activePage?.label ?? "Page"}</strong></div>
           {assignedWorkspace && <GlobalSearch />}
           <span className={`network-status${online ? "" : " network-status-offline"}`} role="status"><Icon name={online ? "wifi" : "offline"} size={14} />{online ? "Online" : "Offline"}</span>
-          {assignedWorkspace && <NotificationCenter />}
+          {(assignedWorkspace || isSystemAdmin) && <NotificationCenter />}
           <details className="profile-menu">
             <summary aria-label="Open account menu"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="profile-menu-name">{name}</span></summary>
             <div className="profile-menu-panel"><strong>{name}</strong><small>{session.user.email}</small><small>{roles.map(roleDisplayName).join(", ") || "No active role"}</small></div>
@@ -115,7 +121,7 @@ export default function App() {
         {roleError && !isSystemAdmin && <div className="global-error" role="alert">Your access could not be loaded. Refresh the page or contact your system administrator.</div>}
         <Suspense fallback={<LoadingPage />}>
           <AppErrorBoundary title="This module could not be loaded">
-            {!routeWorkspaceAllowed ? <div className="page-content"><div className="empty-state"><div className="empty-mark">Restricted</div><h2>{roles.includes("SUPER_SYSTEM_ADMIN") ? "Personnel workspace unavailable" : "Workspace access required"}</h2><p>{roles.includes("SUPER_SYSTEM_ADMIN") ? "This account is limited to system administration and cannot open personnel workspaces." : "Your account does not have an active scope for this department."}</p><Link className="button button-secondary" to="/dashboard">Open your workspaces</Link></div></div> : location.pathname === "/dashboard" ? <DashboardPage workspaces={availableWorkspaces} /> : personnelWorkspaces.some((workspace) => location.pathname === `/${workspace.slug}`) ? <DashboardPage workspace={routeWorkspace} workspaces={availableWorkspaces} /> : employeeProfileMatch ? <EmployeeProfilePage employeeId={decodeURIComponent(employeeProfileMatch[1])} /> : location.pathname === "/documents" ? <DocumentManagerPage /> : location.pathname === "/death" ? <DeathRecordsPage /> : location.pathname === "/admin/sessions" ? <SessionManagementPage /> : <ModulePage />}
+            {!routeWorkspaceAllowed ? <div className="page-content"><div className="empty-state"><div className="empty-mark">Restricted</div><h2>{roles.includes("SUPER_SYSTEM_ADMIN") ? "Personnel workspace unavailable" : "Workspace access required"}</h2><p>{roles.includes("SUPER_SYSTEM_ADMIN") ? "This account is limited to system administration and cannot open personnel workspaces." : "Your account does not have an active scope for this department."}</p><Link className="button button-secondary" to="/dashboard">Open your workspaces</Link></div></div> : location.pathname === "/dashboard" ? <DashboardPage workspaces={availableWorkspaces} /> : personnelWorkspaces.some((workspace) => location.pathname === `/${workspace.slug}`) ? <DashboardPage workspace={routeWorkspace} workspaces={availableWorkspaces} /> : employeeProfileMatch ? <EmployeeProfilePage employeeId={decodeURIComponent(employeeProfileMatch[1])} /> : location.pathname === "/documents" ? <DocumentManagerPage /> : location.pathname === "/death" ? <DeathRecordsPage /> : location.pathname === "/admin/sessions" ? <SessionManagementPage /> : location.pathname === "/admin/users" ? <UserAdministrationPage /> : location.pathname === "/admin/scopes" ? <ScopeAdministrationPage /> : location.pathname === "/admin/roles" ? <RolePermissionsPage /> : location.pathname === "/audit" ? <AdminAuditPage /> : location.pathname === "/security" ? <SecurityEventsPage /> : location.pathname === "/admin/reports" ? <AdminReportsPage /> : <ModulePage />}
           </AppErrorBoundary>
         </Suspense>
       </main>

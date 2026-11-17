@@ -14,7 +14,7 @@ const roleOptions = [
   { code: "ICT_BOARD_USER", label: "ICT Board user" },
 ];
 
-export default function UserRegistrationPanel({ online }: { online: boolean }) {
+export default function UserRegistrationPanel({ online, onSuccess }: { online: boolean; onSuccess?: () => void }) {
   const { roles } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -57,6 +57,7 @@ export default function UserRegistrationPanel({ online }: { online: boolean }) {
       setFullName("");
       setEmail("");
       setRoleCode("");
+      onSuccess?.();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The invitation could not be sent. Try again.");
     } finally {

@@ -18,14 +18,13 @@ export function SidebarFrame({ roleLabel, accountName, signingOut, onNavigate, o
   return (
     <>
       <Link to="/dashboard" className="brand-lockup sidebar-brand" onClick={onNavigate}>
-        <span className="brand-symbol">DK</span><span className="brand-name"><strong>DHRMIS</strong><small>Diocese of Kigezi</small></span>
+        <img className="brand-symbol" src="/LOGO.PNG" alt="" /><span className="brand-name"><strong>DHRMIS</strong><small>Diocese of Kigezi</small></span>
       </Link>
       <div className="nav-caption">{roleLabel}</div>
       <nav className="module-nav" aria-label={`${roleLabel} navigation`}>
         {children}
       </nav>
       <div className="sidebar-bottom">
-        <div className="sidebar-protection"><span className="protection-icon"><Icon name="shield" size={17} /></span><span>Protected workspace<br /><small>Database policies enforce access</small></span></div>
         <div className="account-row"><span className="avatar">{accountName.slice(0, 1).toUpperCase()}</span><span className="account-name"><strong>{accountName}</strong><small>Signed in</small></span></div>
         <button className="button button-secondary sidebar-signout" type="button" onClick={onSignOut} disabled={signingOut}>
           <Icon name="signOut" size={14} />{signingOut ? "Signing out..." : "Sign out"}

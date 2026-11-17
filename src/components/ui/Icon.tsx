@@ -92,7 +92,8 @@ export const pathIcons: Record<string, SystemIcon> = {
   "/organization/boards": "board", "/organization/personnel-domains": "layers",
   "/organization/institutions": "school", "/organization/positions": "briefcase",
   "/organization/grades": "chart", "/audit": "assignment", "/security": "security",
-  "/settings": "settings", "/admin/users": "role", "/admin/scopes": "target",
+  "/settings": "settings", "/admin/users": "people", "/admin/scopes": "target",
+  "/admin/roles": "role", "/admin/reports": "chart", "/admin/sessions": "shield",
 };
 
 const workspaceIcons: Record<string, SystemIcon> = {

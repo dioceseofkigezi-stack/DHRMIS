@@ -30,7 +30,12 @@ export default function NotificationCenter() {
   const unreadCount = items.filter((item) => !item.is_read).length;
 
   async function loadNotifications() {
-    if (!supabase || !session?.user.id) return;
+    if (!session?.user.id) return;
+    if (!supabase) {
+      setUnavailable(true);
+      setItems([]);
+      return;
+    }
     setLoading(true);
     const { data, error } = await supabase.from("user_notifications").select("id,category,severity,title,body,internal_path,is_read,created_at")
       .eq("user_id", session.user.id).order("created_at", { ascending: false }).limit(20);

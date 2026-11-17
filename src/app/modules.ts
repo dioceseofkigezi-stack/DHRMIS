@@ -299,9 +299,12 @@ export const modulePages: ModuleConfig[] = [
   ] },
   { path: "/audit", label: "Audit & security", group: "Administration", description: "Review audit and security events permitted by your account.", table: "audit_log", titleField: "action", columns: ["created_at", "user_name", "action", "module", "result", "purpose"], readOnly: true },
   { path: "/security", label: "Security events", group: "Administration", description: "Review security events permitted by your account.", table: "security_event", titleField: "event_type", columns: ["created_at", "event_type", "severity", "component", "acknowledged", "resolved"], readOnly: true },
-  { path: "/settings", label: "System settings", group: "Administration", description: "Review and update system configuration allowed by your role.", table: "system_config", titleField: "config_key", columns: ["config_key", "config_section", "description", "is_valid"], fields: [
+  { path: "/admin/roles", label: "Roles & permissions", group: "Administration", description: "Review the canonical roles and permission assignments enforced by the system." },
+  { path: "/admin/reports", label: "Administrative reports", group: "Administration", description: "Review summary reports for accounts, sessions, security and system activity." },
+  { path: "/settings", label: "System settings", group: "Administration", description: "Review and update system configuration allowed by your role.", table: "system_config", titleField: "config_key", columns: ["config_key", "config_section", "description", "is_sensitive", "is_valid"], fields: [
     { name: "config_key", label: "Configuration key", required: true }, { name: "config_value", label: "Configuration value", required: true, kind: "textarea" },
     { name: "config_section", label: "Section", required: true }, { name: "description", label: "Description", kind: "textarea" },
+    { name: "is_sensitive", label: "Sensitive value (administrator-only visibility)", kind: "checkbox" },
     { name: "is_valid", label: "Valid", kind: "checkbox" },
   ] },
   { path: "/admin/users", label: "User registration & access", group: "Administration", description: "Invite designated account holders and manage system access.", table: "user_roles", titleField: "role_code", columns: ["user_id", "role_code", "isactive", "issuspended", "accountexpiry"], fields: [
@@ -338,7 +341,7 @@ const businessRoles = [
   "LAND_FINANCE_BOARD_USER", "PLANNING_DEVELOPMENT_BOARD_USER", "ICT_BOARD_USER",
 ];
 const systemAdminOnlyPaths = new Set([
-  "/admin/users", "/admin/scopes", "/admin/sessions", "/settings", "/security", "/audit",
+  "/admin/users", "/admin/scopes", "/admin/sessions", "/admin/roles", "/admin/reports", "/settings", "/security", "/audit",
 ]);
 const platformAdminRoles = ["SUPER_SYSTEM_ADMIN"];
 const financeRoles = ["LAND_FINANCE_BOARD_USER"];

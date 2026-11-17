@@ -1,5 +1,13 @@
-const CACHE_NAME = "dhrmis-static-v2";
-const SHELL_FILES = ["/", "/manifest.webmanifest", "/dhrmis-icon.svg"];
+const CACHE_NAME = "dhrmis-static-v3";
+const SHELL_FILES = [
+  "/",
+  "/manifest.webmanifest",
+  "/favicon.ico",
+  "/favicon-32x32.png",
+  "/apple-touch-icon.png",
+  "/favicon-192x192.png",
+  "/favicon-512x512.png",
+];
 
 async function precacheEntryAssets(cache) {
   const response = await fetch("/", { cache: "reload" });
@@ -47,7 +55,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/dhrmis-icon.svg") {
+  if (url.pathname.startsWith("/assets/") || url.pathname === "/manifest.webmanifest" || url.pathname.startsWith("/favicon") || url.pathname === "/apple-touch-icon.png") {
     event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
       if (response.ok && response.type === "basic") {
         event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone())));

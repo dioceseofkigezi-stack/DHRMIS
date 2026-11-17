@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMetricIcon, getPathIcon, getWorkspaceIcon, Icon } from "@/components/ui/Icon";
 import { supabase } from "@/core/config";
@@ -11,6 +11,8 @@ import {
   workspacePath,
 } from "@/core/organizational-scope/workspaces";
 import { useAuth } from "@/modules/core/auth/context";
+
+const SystemAdminDashboard = lazy(() => import("@/modules/admin/SystemAdminDashboard"));
 
 interface Metric {
   label: string;
@@ -143,34 +145,7 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
 
   if (!workspace) {
     if (isPlatformAdmin) {
-      const systemAdminLinks = [
-        ["/admin/users", "Users, roles & permissions"],
-        ["/admin/scopes", "Account access scopes"],
-        ["/admin/sessions", "Sign-in sessions"],
-        ["/security", "Security events"],
-        ["/audit", "Audit logs"],
-        ["/settings", "System configuration"],
-      ].filter(([path]) => canAccessModule(path, roles));
-
-      return (
-        <div className="page-content">
-          <header className="page-heading">
-            <div><p className="eyebrow">SYSTEM ADMINISTRATION</p><h1><Icon name="overview" size={23} />Super/System Administrator</h1><p className="muted">Manage accounts, access, security, audit records, and system configuration.</p></div>
-          </header>
-          <section className="panel" aria-label="System administration">
-            <div className="panel-heading"><div><p className="eyebrow">SYSTEM FUNCTIONS</p><h2>Administration</h2></div></div>
-            <div className="quick-link-grid">
-              {systemAdminLinks.map(([path, label], index) => (
-                <Link className="quick-link" to={path} key={path}>
-                  <span className={`quick-link-icon quick-link-${index % 6}`}><Icon name={getPathIcon(path)} size={18} /></span>
-                  <span><strong>{label}</strong><small>System administration</small></span>
-                  <span className="quick-link-arrow"><Icon name="arrowRight" size={15} /></span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        </div>
-      );
+      return <SystemAdminDashboard />;
     }
 
     const quickLinks = ["/people", "/leave", "/recruitment", "/applicants", "/assignments", "/documents"];

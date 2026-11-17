@@ -46,7 +46,7 @@ export default function LoginPage() {
   return (
     <main className="login-screen">
       <section className="login-card" aria-labelledby="login-title">
-        <div className="brand-lockup"><span className="brand-symbol">DK</span><span>DHRMIS</span></div>
+        <div className="brand-lockup"><img className="brand-symbol" src="/LOGO.PNG" alt="" /><span>DHRMIS</span></div>
         <p className="eyebrow">DIOCESE OF KIGEZI</p>
         <h1 id="login-title">Welcome back</h1>
         <p className="muted">Sign in to your human resource management workspace.</p>

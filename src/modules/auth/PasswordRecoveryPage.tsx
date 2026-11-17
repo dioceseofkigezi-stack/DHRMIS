@@ -56,7 +56,7 @@ export default function PasswordRecoveryPage({ mode }: { mode: "request" | "rese
   return (
     <main className="login-screen">
       <section className="login-card" aria-labelledby="recovery-title">
-        <div className="brand-lockup"><span className="brand-symbol">DK</span><span>DHRMIS</span></div>
+        <div className="brand-lockup"><img className="brand-symbol" src="/LOGO.PNG" alt="" /><span>DHRMIS</span></div>
         <p className="eyebrow">ACCOUNT SECURITY</p>
         <h1 id="recovery-title">{mode === "request" ? "Reset your password" : "Choose a new password"}</h1>
         {mode === "request" ? <p className="muted">Enter your account email and we’ll send reset instructions if it is registered.</p> : session ? <p className="muted">Choose a new password for your diocesan account.</p> : <p className="muted">This recovery link is invalid or has expired. Request a new one to continue.</p>}
