@@ -21,7 +21,6 @@ interface AdminAccount {
   lockeduntil: string | null;
   lastloginat: string | null;
   createdat: string | null;
-  email_confirmed_at: string | null;
   account_status: string;
   total_count: number;
 }
@@ -51,12 +50,12 @@ async function accountFunctionErrorMessage(reason: unknown, fallback: string) {
   return fallback;
 }
 
-const statusOptions = ["Active", "First login required", "Suspended", "Inactive", "Expired", "Locked", "Pending", "Unassigned"];
+const statusOptions = ["Active", "First login required", "Suspended", "Inactive", "Expired", "Locked", "Unassigned"];
 
 function statusTone(status: string): "success" | "warning" | "danger" | "neutral" {
   if (status === "Active") return "success";
   if (status === "Suspended" || status === "Locked" || status === "Expired") return "danger";
-  if (status === "Inactive" || status === "Pending" || status === "First login required") return "warning";
+  if (status === "Inactive" || status === "First login required") return "warning";
   return "neutral";
 }
 
@@ -319,11 +318,8 @@ export default function UserAdministrationPage() {
                   {account.assignment_id && account.account_status === "Active" ? <>
                     <button className="text-button" type="button" disabled={ownAccount || !online} onClick={() => requestAction(account, "suspend")}>Suspend</button>
                     <button className="text-button admin-danger-link" type="button" disabled={ownAccount || !online} onClick={() => requestAction(account, "deactivate")}>Deactivate</button>
-                  </> : account.assignment_id && account.account_status === "Pending" ? <>
-                    <span className="admin-muted-state">Invitation pending</span>
-                    <button className="text-button admin-danger-link" type="button" disabled={ownAccount || !online} onClick={() => requestAction(account, "deactivate")}>Deactivate</button>
                   </> : account.assignment_id ? <button className="text-button" type="button" disabled={ownAccount || !online} onClick={() => requestAction(account, "activate")}>Activate / unlock</button> : null}
-                  <button className="text-button" type="button" disabled={!account.email || ownAccount || !online || account.account_status === "Pending"} onClick={() => requestAction(account, "password-reset")} title={account.account_status === "Pending" ? "The account email must be confirmed before password recovery." : undefined}>{account.account_status === "Pending" ? "Awaiting confirmation" : "Password reset"}</button>
+                  <button className="text-button" type="button" disabled={!account.email || ownAccount || !online} onClick={() => requestAction(account, "password-reset")}>Password reset</button>
                   <button className="text-button admin-danger-link" type="button" aria-label={`Delete user ${account.email || account.user_id}`} disabled={ownAccount || !online} onClick={() => requestAction(account, "delete")}>Delete user</button>
                 </td>
               </tr>;
