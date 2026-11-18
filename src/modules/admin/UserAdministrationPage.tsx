@@ -28,7 +28,7 @@ interface AdminAccount {
 
 interface RoleOption { role_code: string; role_name: string }
 interface EditableAccountDetails { username: string; fullName: string; email: string; phone: string }
-type ActionKind = "activate" | "deactivate" | "suspend" | "change-role" | "assign-role" | "password-reset";
+type ActionKind = "activate" | "deactivate" | "suspend" | "change-role" | "assign-role" | "password-reset" | "delete";
 interface PendingAction { account: AdminAccount; action: ActionKind; roleCode?: string }
 
 async function accountFunctionErrorMessage(reason: unknown, fallback: string) {
@@ -51,12 +51,12 @@ async function accountFunctionErrorMessage(reason: unknown, fallback: string) {
   return fallback;
 }
 
-const statusOptions = ["Active", "Suspended", "Inactive", "Expired", "Locked", "Pending", "Unassigned"];
+const statusOptions = ["Active", "First login required", "Suspended", "Inactive", "Expired", "Locked", "Pending", "Unassigned"];
 
 function statusTone(status: string): "success" | "warning" | "danger" | "neutral" {
   if (status === "Active") return "success";
   if (status === "Suspended" || status === "Locked" || status === "Expired") return "danger";
-  if (status === "Inactive" || status === "Pending") return "warning";
+  if (status === "Inactive" || status === "Pending" || status === "First login required") return "warning";
   return "neutral";
 }
 
@@ -69,6 +69,7 @@ function actionCopy(action: ActionKind, account: AdminAccount, roleName?: string
     case "change-role": return { title: "Change account role?", confirm: "Change role", body: `Change ${name}'s role to ${roleName}. The database will update the role-derived organizational scope.` };
     case "assign-role": return { title: "Assign account role?", confirm: "Assign role", body: `Assign ${roleName} to ${name}. The database will create the role-derived organizational scope.` };
     case "password-reset": return { title: "Send password reset email?", confirm: "Send reset email", body: `Send a secure password reset link to ${account.email || "this account's email address"}. The user sets their own new password; the administrator will not see it.` };
+    case "delete": return { title: "Delete user account?", confirm: "Delete account", body: `Permanently delete ${name}'s sign-in account and role assignments. This cannot be undone. Records that require this account to be reassigned will prevent deletion.` };
   }
 }
 
@@ -210,7 +211,14 @@ export default function UserAdministrationPage() {
     setBusy(true);
     setError("");
     try {
-      if (action === "password-reset") {
+      if (action === "delete") {
+        const { data, error: deleteError } = await supabase.functions.invoke("admin-user-account", {
+          body: { action: "delete", userId: account.user_id },
+        });
+        if (deleteError) throw new Error(await accountFunctionErrorMessage(deleteError, "The user account could not be deleted."));
+        if (data?.auditLogged === false) toast("Account deleted, but the audit entry could not be confirmed.", "info");
+        else toast("User account deleted.", "success");
+      } else if (action === "password-reset") {
         if (!account.email) throw new Error("This account has no email address for password recovery.");
         if (!session?.user.id) throw new Error("Your active administrator session could not be verified.");
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(account.email, {
@@ -274,7 +282,7 @@ export default function UserAdministrationPage() {
   const confirmation = pending ? actionCopy(pending.action, pending.account, roleOptions.find((role) => role.role_code === pending.roleCode)?.role_name ?? pending.roleCode) : null;
 
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="User access" description="Edit usernames and account details, invite users, and manage roles, status and password recovery." icon="people" actions={<button className="button button-secondary" type="button" onClick={() => void loadAccounts()} disabled={loading}>Refresh</button>} />
+    <AdminPageHeader title="User access" description="Create accounts with one-time passwords, edit account details, and manage roles, status, password recovery and account deletion." icon="people" actions={<button className="button button-secondary" type="button" onClick={() => void loadAccounts()} disabled={loading}>Refresh</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     {!online && <AdminNotice tone="warning">You are offline. Account changes are not available.</AdminNotice>}
     <section className="panel admin-directory-panel" aria-label="User account directory">
@@ -315,7 +323,8 @@ export default function UserAdministrationPage() {
                     <span className="admin-muted-state">Invitation pending</span>
                     <button className="text-button admin-danger-link" type="button" disabled={ownAccount || !online} onClick={() => requestAction(account, "deactivate")}>Deactivate</button>
                   </> : account.assignment_id ? <button className="text-button" type="button" disabled={ownAccount || !online} onClick={() => requestAction(account, "activate")}>Activate / unlock</button> : null}
-                  <button className="text-button" type="button" disabled={!account.email || ownAccount || !online || account.account_status === "Pending"} onClick={() => requestAction(account, "password-reset")} title={account.account_status === "Pending" ? "The invitation must be accepted before password recovery." : undefined}>{account.account_status === "Pending" ? "Awaiting confirmation" : "Password reset"}</button>
+                  <button className="text-button" type="button" disabled={!account.email || ownAccount || !online || account.account_status === "Pending"} onClick={() => requestAction(account, "password-reset")} title={account.account_status === "Pending" ? "The account email must be confirmed before password recovery." : undefined}>{account.account_status === "Pending" ? "Awaiting confirmation" : "Password reset"}</button>
+                  <button className="text-button admin-danger-link" type="button" aria-label={`Delete user ${account.email || account.user_id}`} disabled={ownAccount || !online} onClick={() => requestAction(account, "delete")}>Delete user</button>
                 </td>
               </tr>;
             })}
@@ -323,7 +332,7 @@ export default function UserAdministrationPage() {
       {!loading && <AdminPagination page={page} total={total} onPage={setPage} />}
     </section>
     <UserRegistrationPanel online={online} onSuccess={() => void loadAccounts()} />
-    {pending && confirmation && <ConfirmDialog title={confirmation.title} confirmLabel={confirmation.confirm} destructive={pending.action === "deactivate" || pending.action === "suspend"} busy={busy} onCancel={() => setPending(null)} onConfirm={() => void executePendingAction()}>
+    {pending && confirmation && <ConfirmDialog title={confirmation.title} confirmLabel={confirmation.confirm} destructive={pending.action === "deactivate" || pending.action === "suspend" || pending.action === "delete"} busy={busy} onCancel={() => setPending(null)} onConfirm={() => void executePendingAction()}>
       <p>{confirmation.body}</p>
       {pending.action !== "password-reset" && <p className="admin-confirm-detail"><strong>Account:</strong> {pending.account.email || pending.account.user_id}<br /><strong>Role:</strong> {pending.action === "change-role" || pending.action === "assign-role" ? roleOptions.find((role) => role.role_code === pending.roleCode)?.role_name : pending.account.role_code}</p>}
     </ConfirmDialog>}

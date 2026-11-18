@@ -9,6 +9,7 @@ import { AppErrorBoundary } from "@/core/errors/AppErrorBoundary";
 import { useNetworkStatus } from "@/core/monitoring/useNetworkStatus";
 import { useToast } from "@/core/notifications/ToastProvider";
 import { useAuth } from "@/modules/core/auth/context";
+import FirstLoginPasswordPage from "@/modules/auth/FirstLoginPasswordPage";
 import { canAccessWorkspace, getAssignedWorkspace, getWorkspaceFromPath, personnelWorkspaces, roleDisplayName } from "@/core/organizational-scope/workspaces";
 
 const DashboardPage = lazy(() => import("@/app/DashboardPage"));
@@ -44,11 +45,20 @@ export default function App() {
   const showToast = useToast();
   const online = useNetworkStatus();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("dhrmis-sidebar-collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [signingOut, setSigningOut] = useState(false);
 
   if (loading) return <LoadingPage />;
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (session.user.app_metadata?.must_change_password === true) return <FirstLoginPasswordPage />;
   if (roleLoading || roleUserId !== session.user.id) return <LoadingPage />;
+  if (location.pathname === "/users") return <Navigate to={{ pathname: "/admin/users", search: location.search, hash: location.hash }} replace />;
 
   const isSystemAdmin = roles.includes("SUPER_SYSTEM_ADMIN");
   const assignedWorkspace = getAssignedWorkspace(roles, workspaceDomainCodes);
@@ -75,6 +85,16 @@ export default function App() {
   const sidebarProps = {
     accountName: name,
     signingOut,
+    sidebarCollapsed,
+    onToggleCollapse: () => {
+      const nextCollapsed = !sidebarCollapsed;
+      setSidebarCollapsed(nextCollapsed);
+      try {
+        localStorage.setItem("dhrmis-sidebar-collapsed", String(nextCollapsed));
+      } catch {
+        // Keep the toggle usable when browser storage is unavailable.
+      }
+    },
     onNavigate: () => setSidebarOpen(false),
     onSignOut: () => void handleSignOut(),
   };
@@ -93,7 +113,7 @@ export default function App() {
   return (
     <div className="app-shell">
       {sidebarOpen && <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
-      <aside className={`sidebar${sidebarOpen ? " sidebar-open" : ""}`}>
+      <aside className={`sidebar${sidebarOpen ? " sidebar-open" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
         <Suspense fallback={null}>
           {roles.includes("SUPER_SYSTEM_ADMIN") ? <SuperSystemAdminSidebar {...sidebarProps} />
             : roles.includes("SECRETARIAT_USER") ? <SecretariatSidebar {...sidebarProps} hasWorkspaceAccess={availableWorkspaces.some((workspace) => workspace.code === "SECRETARIAT")} />
@@ -106,7 +126,7 @@ export default function App() {
                           : null}
         </Suspense>
       </aside>
-      <main className="main-area">
+      <main className={`main-area${sidebarCollapsed ? " main-area-collapsed" : ""}`}>
         <header className="topbar">
           <button className="menu-button" aria-label="Open navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)}><Icon name="menu" size={21} /></button>
           <div className="breadcrumb"><Link to="/dashboard">Workspace</Link><span className="breadcrumb-separator">/</span><strong>{selectedWorkspace ? `${selectedWorkspace.shortName} · ${location.pathname === `/${selectedWorkspace.slug}` ? "Dashboard" : employeeProfileMatch ? "Employee profile" : activePage?.label ?? "Page"}` : location.pathname === "/dashboard" ? "Overview" : employeeProfileMatch ? "Employee profile" : activePage?.label ?? "Page"}</strong></div>

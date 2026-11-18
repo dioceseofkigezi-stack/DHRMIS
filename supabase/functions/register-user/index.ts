@@ -19,7 +19,33 @@ function respond(status: number, body: Record<string, unknown>) {
   });
 }
 
-function invitationFailure(error: { code?: string; status?: number; message?: string }) {
+function randomIndex(length: number) {
+  const range = Math.floor(256 / length) * length;
+  const byte = new Uint8Array(1);
+  do crypto.getRandomValues(byte); while (byte[0] >= range);
+  return byte[0] % length;
+}
+
+function randomCharacter(characters: string) {
+  return characters[randomIndex(characters.length)];
+}
+
+function createTemporaryPassword() {
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const symbols = "!@#$%&*+-_=.?";
+  const all = lower + upper + digits + symbols;
+  const characters = [randomCharacter(lower), randomCharacter(upper), randomCharacter(digits), randomCharacter(symbols)];
+  while (characters.length < 24) characters.push(randomCharacter(all));
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomIndex(index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+  }
+  return characters.join("");
+}
+
+function creationFailure(error: { code?: string; status?: number; message?: string }) {
   const detail = (error.message ?? "").toLowerCase();
   const reference = error.code ? ` Reference: ${error.code}.` : "";
   if (detail.includes("already") || detail.includes("registered") || detail.includes("exists")) {
@@ -29,15 +55,9 @@ function invitationFailure(error: { code?: string; status?: number; message?: st
     return respond(400, { message: "Supabase Auth rejected this email address. Check the address and try again." });
   }
   if (error.status === 429 || detail.includes("rate limit") || detail.includes("too many")) {
-    return respond(429, { message: "The invitation email limit has been reached. Wait a while and try again." });
+    return respond(429, { message: "The account creation limit has been reached. Wait a while and try again." });
   }
-  if (detail.includes("redirect") || detail.includes("allow list") || detail.includes("allowlist")) {
-    return respond(502, { message: "The invitation link destination is not allowed. Add this application URL to the Supabase Auth redirect allow list." });
-  }
-  if (detail.includes("smtp") || detail.includes("mail") || detail.includes("send email") || detail.includes("sending email") || detail.includes("invite email")) {
-    return respond(502, { message: "Supabase Auth could not deliver the invitation email. Check the project's SMTP and email template settings, then try again." });
-  }
-  return respond(502, { message: `Supabase Auth rejected the invitation. Check the project's Auth logs and email settings.${reference}` });
+  return respond(502, { message: `Supabase Auth could not create the account. Check the project's Auth logs.${reference}` });
 }
 
 function isCurrentActiveSuperAdmin(role: Record<string, unknown>) {
@@ -64,7 +84,7 @@ function sessionIdFromToken(accessToken: string) {
 
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (request.method !== "POST") return respond(405, { message: "Use POST to register a user." });
+  if (request.method !== "POST") return respond(405, { message: "Use POST to create an account." });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -87,6 +107,9 @@ Deno.serve(async (request: Request) => {
 
   const { data: callerData, error: callerError } = await callerClient.auth.getUser(accessToken);
   if (callerError || !callerData.user) return respond(401, { message: "Your session has expired. Sign in again." });
+  if (callerData.user.app_metadata?.must_change_password === true) {
+    return respond(403, { message: "Change your temporary password before using account administration." });
+  }
   const { data: roleRows, error: roleError } = await adminClient
     .from("user_roles")
     .select("*")
@@ -104,16 +127,16 @@ Deno.serve(async (request: Request) => {
     : { data: null, error: null };
   if (sessionError) return respond(500, { message: "Administrator session access could not be checked." });
   if (!trackedSession || !(roleRows ?? []).some((row) => isCurrentActiveSuperAdmin(row as Record<string, unknown>))) {
-    return respond(403, { message: "Only an active Super System Administrator session can register users." });
+    return respond(403, { message: "Only an active Super System Administrator session can create accounts." });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return respond(400, { message: "Enter a valid registration request." });
+    return respond(400, { message: "Enter a valid account request." });
   }
-  if (!body || typeof body !== "object") return respond(400, { message: "Enter a valid registration request." });
+  if (!body || typeof body !== "object") return respond(400, { message: "Enter a valid account request." });
 
   const input = body as Record<string, unknown>;
   const fullName = typeof input.fullName === "string" ? input.fullName.trim() : "";
@@ -127,32 +150,34 @@ Deno.serve(async (request: Request) => {
   }
   if (!roleCodes.has(roleCode)) return respond(400, { message: "Select a valid system role." });
 
-  let invitationResult: Awaited<ReturnType<typeof adminClient.auth.admin.inviteUserByEmail>> | null = null;
+  const temporaryPassword = createTemporaryPassword();
+  let creationResult: Awaited<ReturnType<typeof adminClient.auth.admin.createUser>>;
   try {
-    invitationResult = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: fullName },
+    creationResult = await adminClient.auth.admin.createUser({
+      email,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: { full_name: fullName, name: fullName },
+      app_metadata: { must_change_password: true },
     });
   } catch (reason) {
-    console.error("register-user: Supabase Auth invitation request failed", reason);
-    return respond(502, { message: "The invitation service could not reach Supabase Auth. Check the Edge Function logs and try again." });
+    console.error("register-user: Supabase Auth account creation request failed", reason);
+    return respond(502, { message: "The account service could not reach Supabase Auth. Check the Edge Function logs and try again." });
   }
-  if (!invitationResult) {
-    return respond(502, { message: "The invitation service did not return a result. Check the Edge Function logs and try again." });
-  }
-  const invitedUser = invitationResult.data?.user;
-  if (invitationResult.error || !invitedUser) {
-    if (invitationResult.error) console.error("register-user: Supabase Auth rejected an invitation", {
-      code: invitationResult.error.code,
-      status: invitationResult.error.status,
-      message: invitationResult.error.message,
+  const newUser = creationResult.data?.user;
+  if (creationResult.error || !newUser) {
+    if (creationResult.error) console.error("register-user: Supabase Auth rejected an account", {
+      code: creationResult.error.code,
+      status: creationResult.error.status,
+      message: creationResult.error.message,
     });
-    return invitationResult.error
-      ? invitationFailure(invitationResult.error)
-      : respond(502, { message: "Supabase Auth did not return the invited account. Check the Edge Function logs and Auth settings." });
+    return creationResult.error
+      ? creationFailure(creationResult.error)
+      : respond(502, { message: "Supabase Auth did not return the new account. Check the Auth settings." });
   }
 
   const { data: assignment, error: assignmentError } = await adminClient.from("user_roles").insert({
-    user_id: invitedUser.id,
+    user_id: newUser.id,
     role_code: roleCode,
     permissions: [],
     scopes: [],
@@ -160,7 +185,7 @@ Deno.serve(async (request: Request) => {
     issuspended: false,
   }).select("id").single();
   if (assignmentError) {
-    await adminClient.auth.admin.deleteUser(invitedUser.id);
+    await adminClient.auth.admin.deleteUser(newUser.id);
     if (assignmentError.code === "23505") {
       return respond(409, { message: "That designated role already has an active account. Deactivate or replace its current account first." });
     }
@@ -172,14 +197,15 @@ Deno.serve(async (request: Request) => {
     ? await adminClient.from("audit_log").update({
       user_id: callerData.user.id,
       user_name: actorName,
-      action: "USER_INVITED",
-      purpose: `Invited ${email} with role ${roleCode}.`,
+      action: "USER_ACCOUNT_CREATED",
+      purpose: `Created ${email} with role ${roleCode} and a required first-login password change.`,
     }).eq("record_id", assignment.id).eq("module", "user_roles").is("user_id", null).select("id").maybeSingle()
     : { data: null, error: new Error("The role assignment audit record is unavailable.") };
 
   return respond(201, {
-    userId: invitedUser.id,
-    message: "Invitation sent.",
+    userId: newUser.id,
+    temporaryPassword,
+    message: "Account created. The temporary password must be changed at first sign-in.",
     auditLogged: !auditError && Boolean(auditEntry),
   });
 });

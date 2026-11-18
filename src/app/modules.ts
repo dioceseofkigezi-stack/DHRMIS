@@ -308,7 +308,7 @@ export const modulePages: ModuleConfig[] = [
     { name: "is_sensitive", label: "Sensitive value (administrator-only visibility)", kind: "checkbox" },
     { name: "is_valid", label: "Valid", kind: "checkbox" },
   ] },
-  { path: "/admin/users", label: "User registration & access", group: "Administration", description: "Invite designated account holders and manage system access.", table: "user_roles", titleField: "role_code", columns: ["user_id", "role_code", "isactive", "issuspended", "accountexpiry"], fields: [
+  { path: "/admin/users", label: "User registration & access", group: "Administration", description: "Create accounts with one-time passwords and manage system access.", table: "user_roles", titleField: "role_code", columns: ["user_id", "role_code", "isactive", "issuspended", "accountexpiry"], fields: [
     { name: "user_id", label: "Existing account user ID", required: true },
     { name: "role_code", label: "Role", kind: "select", required: true, options: [
       "SUPER_SYSTEM_ADMIN", "SECRETARIAT_USER", "MISSION_BOARD_USER",

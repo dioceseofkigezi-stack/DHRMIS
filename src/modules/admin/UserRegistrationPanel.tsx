@@ -13,6 +13,39 @@ const roleOptions = [
   { code: "ICT_BOARD_USER", label: "ICT Board user" },
 ];
 
+interface CreatedAccount {
+  email: string;
+  role: string;
+  temporaryPassword: string;
+  auditLogged: boolean;
+}
+
+async function functionErrorMessage(reason: unknown, fallback: string) {
+  if (reason && typeof reason === "object" && "name" in reason && reason.name === "FunctionsFetchError") {
+    return "The account service could not be reached. Check your connection and confirm the register-user Edge Function is deployed.";
+  }
+  if (reason && typeof reason === "object" && "context" in reason && reason.context instanceof Response) {
+    try {
+      const response = reason.context.clone();
+      const responseText = await response.text();
+      let payload: unknown;
+      try { payload = JSON.parse(responseText) as unknown; } catch { payload = null; }
+      if (payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string") {
+        return payload.message;
+      }
+      if (response.status === 404) return "The register-user Edge Function was not found. Deploy it to the configured Supabase project and try again.";
+      if (response.status >= 500) return `The account function failed (HTTP ${response.status}). Check its Supabase logs for the cause.`;
+      return `The account function rejected the request (HTTP ${response.status}). Check your session and account details.`;
+    } catch {
+      // Keep the safe fallback if the response cannot be read.
+    }
+  }
+  if (reason && typeof reason === "object" && "message" in reason && typeof reason.message === "string") {
+    return reason.message;
+  }
+  return fallback;
+}
+
 export default function UserRegistrationPanel({ online, onSuccess }: { online: boolean; onSuccess?: () => void }) {
   const { roles } = useAuth();
   const [fullName, setFullName] = useState("");
@@ -20,76 +53,79 @@ export default function UserRegistrationPanel({ online, onSuccess }: { online: b
   const [roleCode, setRoleCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [createdAccount, setCreatedAccount] = useState<CreatedAccount | null>(null);
+  const [copyMessage, setCopyMessage] = useState("");
 
   if (!roles.includes("SUPER_SYSTEM_ADMIN")) return null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    setSuccess("");
+    setCreatedAccount(null);
+    setCopyMessage("");
     if (!supabase) {
       setError("The account service is not configured. Contact your system administrator.");
       return;
     }
     setSubmitting(true);
     try {
-      const { data: inviteData, error: inviteError } = await supabase.functions.invoke("register-user", {
+      const { data, error: createError } = await supabase.functions.invoke("register-user", {
         body: { fullName: fullName.trim(), email: email.trim(), roleCode },
       });
-      if (inviteError) {
-        let message = "The invitation could not be sent. Check the details and try again.";
-        if ("name" in inviteError && inviteError.name === "FunctionsFetchError") {
-          message = "The invitation service could not be reached. Check your connection and confirm the register-user Edge Function is deployed.";
-        } else if ("name" in inviteError && inviteError.name === "FunctionsRelayError") {
-          message = "Supabase could not start the invitation function. Check the register-user Edge Function deployment and logs.";
-        }
-        if ("context" in inviteError && inviteError.context instanceof Response) {
-          try {
-            const response = inviteError.context.clone();
-            const responseText = await response.text();
-            let payload: unknown;
-            try { payload = JSON.parse(responseText) as unknown; } catch { payload = null; }
-            if (payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string") {
-              message = payload.message;
-            } else if (response.status === 404) {
-              message = "The register-user Edge Function was not found. Deploy it to the configured Supabase project and try again.";
-            } else if (response.status >= 500) {
-              message = `The invitation function failed (HTTP ${response.status}). Check its Supabase logs for the cause.`;
-            } else {
-              message = `The invitation function rejected the request (HTTP ${response.status}). Check your session and registration details.`;
-            }
-          } catch {
-            // Keep the most actionable error found when the response cannot be read.
-          }
-        }
-        throw new Error(message);
+      if (createError) throw createError;
+      const temporaryPassword = data && typeof data === "object" && "temporaryPassword" in data && typeof data.temporaryPassword === "string"
+        ? data.temporaryPassword
+        : "";
+      if (!temporaryPassword) {
+        throw new Error("The account was created, but its one-time password was not returned. Contact your system administrator before sharing the account details.");
       }
       const selectedRole = roleOptions.find((role) => role.code === roleCode)?.label ?? roleCode;
-      const auditWarning = inviteData && typeof inviteData === "object" && "auditLogged" in inviteData && inviteData.auditLogged === false
-        ? " The invitation was sent, but the audit entry could not be confirmed."
-        : "";
-      setSuccess(`Invitation sent to ${email.trim()} with the ${selectedRole} role. After accepting it, the user can use “Forgot password” on the sign-in page to set a password.${auditWarning}`);
+      setCreatedAccount({
+        email: email.trim(),
+        role: selectedRole,
+        temporaryPassword,
+        auditLogged: !(data && typeof data === "object" && "auditLogged" in data && data.auditLogged === false),
+      });
       setFullName("");
       setEmail("");
       setRoleCode("");
       onSuccess?.();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The invitation could not be sent. Try again.");
+      setError(await functionErrorMessage(reason, "The account could not be created. Check the details and try again."));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function copyTemporaryPassword() {
+    if (!createdAccount) return;
+    try {
+      await navigator.clipboard.writeText(createdAccount.temporaryPassword);
+      setCopyMessage("Temporary password copied.");
+    } catch {
+      setCopyMessage("Copy is unavailable here. Select the password and copy it manually.");
     }
   }
 
   return (
     <section className="panel registration-panel" aria-labelledby="register-user-title">
       <div className="panel-heading registration-heading">
-        <div>
-          <h2 id="register-user-title">Register a user</h2>
-        </div>
+        <div><h2 id="register-user-title">Create a user account</h2></div>
       </div>
       {error && <div className="notice notice-error registration-message" role="alert">{error}</div>}
-      {success && <div className="notice notice-success registration-message" role="status">{success}</div>}
+      {createdAccount && <div className="registration-credentials" role="status">
+        <button className="text-button" type="button" onClick={() => { setCreatedAccount(null); setCopyMessage(""); }}>Hide credentials</button>
+        <div className="notice notice-success registration-message">
+          <strong>Account created for {createdAccount.email}</strong><br />
+          Role: {createdAccount.role}. The user must change this one-time password at first sign-in.
+          {!createdAccount.auditLogged && <><br />The account was created, but its audit entry could not be confirmed.</>}
+        </div>
+        <label className="field registration-password">One-time temporary password
+          <span className="registration-password-row"><input type="text" readOnly autoComplete="off" value={createdAccount.temporaryPassword} onFocus={(event) => event.currentTarget.select()} aria-label="One-time temporary password" /><button className="button button-secondary" type="button" onClick={() => void copyTemporaryPassword()}>Copy</button></span>
+        </label>
+        {copyMessage && <small className="field-help" aria-live="polite">{copyMessage}</small>}
+        <p className="field-help">This password is shown only now. Give it directly to the account holder.</p>
+      </div>}
       <form className="registration-form" onSubmit={(event) => void handleSubmit(event)}>
         <div className="registration-fields">
           <label className="field" htmlFor="register-full-name">Full name<span aria-hidden="true" className="required-indicator"> *</span>
@@ -107,8 +143,9 @@ export default function UserRegistrationPanel({ online, onSuccess }: { online: b
         </div>
         <div className="registration-footer">
           <button className="button button-primary" type="submit" disabled={!online || submitting || !supabase}>
-            {submitting ? "Sending invitation…" : "Send invitation"}
+            {submitting ? "Creating account…" : "Create account"}
           </button>
+          <small className="muted">A one-time password will be generated and shown after creation.</small>
         </div>
       </form>
     </section>

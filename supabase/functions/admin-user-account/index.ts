@@ -77,6 +77,9 @@ Deno.serve(async (request: Request) => {
 
   const { data: callerData, error: callerError } = await callerClient.auth.getUser(accessToken);
   if (callerError || !callerData.user) return respond(401, { message: "Your session has expired. Sign in again." });
+  if (callerData.user.app_metadata?.must_change_password === true) {
+    return respond(403, { message: "Change your temporary password before using account administration." });
+  }
   const { data: roleRows, error: roleError } = await adminClient
     .from("user_roles")
     .select("*")
@@ -108,14 +111,74 @@ Deno.serve(async (request: Request) => {
   const input = body as Record<string, unknown>;
   const action = input.action;
   const userId = typeof input.userId === "string" ? input.userId : "";
-  if (action !== "get" && action !== "update") return respond(400, { message: "Choose a valid account action." });
+  if (action !== "get" && action !== "update" && action !== "delete") return respond(400, { message: "Choose a valid account action." });
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
     return respond(400, { message: "Choose a valid user account." });
+  }
+  if (action === "delete" && userId === callerData.user.id) {
+    return respond(403, { message: "You cannot delete the account you are currently using." });
   }
 
   const { data: targetData, error: targetError } = await adminClient.auth.admin.getUserById(userId);
   const targetUser = targetData.user;
   if (targetError || !targetUser) return respond(404, { message: "The selected account could not be found." });
+  if (action === "delete") {
+    const { data: targetRoles, error: targetRolesError } = await adminClient.from("user_roles")
+      .select("role_code,isactive,issuspended,accountexpiry,lockeduntil")
+      .eq("user_id", userId);
+    if (targetRolesError) return respond(500, { message: "The account's role assignments could not be checked." });
+    const targetIsActiveSystemAdmin = (targetRoles ?? []).some((role) =>
+      role.role_code === "SUPER_SYSTEM_ADMIN" && isCurrentActiveSuperAdmin(role as Record<string, unknown>));
+    if (targetIsActiveSystemAdmin) {
+      const { data: adminRows, error: adminRowsError } = await adminClient.from("user_roles")
+        .select("user_id,isactive,issuspended,accountexpiry,lockeduntil")
+        .eq("role_code", "SUPER_SYSTEM_ADMIN");
+      if (adminRowsError) return respond(500, { message: "The active administrator account could not be checked." });
+      const activeAdminCount = (adminRows ?? []).filter((row) => isCurrentActiveSuperAdmin(row as Record<string, unknown>)).length;
+      if (activeAdminCount <= 1) {
+        return respond(409, { message: "The last active Super/System Administrator account cannot be deleted. Assign another active administrator first." });
+      }
+    }
+
+    const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
+    if (deleteError) {
+      const detail = deleteError.message.toLowerCase();
+      if (deleteError.code === "23503" || detail.includes("foreign key constraint") ||
+          detail.includes("violates foreign key") || detail.includes("database error deleting user")) {
+        return respond(409, { message: "This account is linked to records that must be reassigned before it can be deleted." });
+      }
+      console.error("admin-user-account: account deletion failed", {
+        code: deleteError.code,
+        status: deleteError.status,
+        message: deleteError.message,
+      });
+      return respond(502, { message: "The account could not be deleted. Check the Auth and database logs, then try again." });
+    }
+
+    const actorMetadata = callerData.user.user_metadata ?? {};
+    const actorName = (typeof actorMetadata.full_name === "string" && actorMetadata.full_name) ||
+      (typeof actorMetadata.name === "string" && actorMetadata.name) || callerData.user.email || null;
+    const { error: auditError } = await adminClient.from("audit_log").insert({
+      user_id: callerData.user.id,
+      user_name: actorName,
+      action: "USER_ACCOUNT_DELETED",
+      module: "user_accounts",
+      record_id: userId,
+      record_type: "auth.users",
+      result: "Success",
+      before_values: {
+        email: targetUser.email ?? null,
+        full_name: targetUser.user_metadata?.full_name ?? targetUser.user_metadata?.name ?? null,
+        role_codes: (targetRoles ?? []).map((role) => role.role_code),
+      },
+      after_values: { deleted: true },
+      purpose: "Super/System Administrator deleted a user account.",
+      context: "Deleted the Auth account and its cascading access assignments.",
+      session_id: trackedSession.id,
+    });
+    return respond(200, { deleted: true, auditLogged: !auditError });
+  }
+
   const { data: usernameRecord, error: usernameReadError } = await adminClient.from("admin_usernames")
     .select("username")
     .eq("user_id", userId)

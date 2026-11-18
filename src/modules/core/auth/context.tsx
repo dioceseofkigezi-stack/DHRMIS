@@ -238,7 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void loadCurrentWorkspace();
     return () => { active = false; };
-  }, [sessionUserId]);
+  }, [session?.access_token, sessionUserId]);
 
   const value = useMemo<AuthContextValue>(() => ({
     session,
