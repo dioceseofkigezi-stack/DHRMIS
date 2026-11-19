@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { canAccessModule, modulePages } from "@/app/modules";
 import GlobalSearch from "@/components/navigation/GlobalSearch";
@@ -48,6 +48,13 @@ export default function App() {
   const showToast = useToast();
   const online = useNetworkStatus();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => window.matchMedia("(max-width: 760px)").matches);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const closeSidebar = useCallback(() => {
+    setSidebarOpen(false);
+    if (isMobileViewport) window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+  }, [isMobileViewport]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem("dhrmis-sidebar-collapsed") === "true";
@@ -60,6 +67,54 @@ export default function App() {
     ? session.user.user_metadata.avatar_path
     : "";
   const [accountAvatarUrl, setAccountAvatarUrl] = useState("");
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+    const updateViewport = (event: MediaQueryListEvent) => setIsMobileViewport(event.matches);
+    setIsMobileViewport(media.matches);
+    media.addEventListener("change", updateViewport);
+    return () => media.removeEventListener("change", updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!sidebarOpen || !isMobileViewport) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusableSelector = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusableElements = () => Array.from(sidebarRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+      .filter((element) => element.offsetParent !== null);
+    const focusFrame = window.requestAnimationFrame(() => {
+      (focusableElements()[0] ?? sidebarRef.current)?.focus();
+    });
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeSidebar();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = focusableElements();
+      if (!focusable.length) {
+        event.preventDefault();
+        sidebarRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !sidebarRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !sidebarRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [sidebarOpen, isMobileViewport, closeSidebar]);
 
   useEffect(() => {
     let active = true;
@@ -125,7 +180,7 @@ export default function App() {
         // Keep the toggle usable when browser storage is unavailable.
       }
     },
-    onNavigate: () => setSidebarOpen(false),
+    onNavigate: closeSidebar,
     onSignOut: () => void handleSignOut(),
   };
 
@@ -142,8 +197,8 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {sidebarOpen && <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
-      <aside className={`sidebar${sidebarOpen ? " sidebar-open" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
+      {sidebarOpen && <button className="sidebar-scrim" type="button" tabIndex={-1} aria-label="Close navigation" onClick={closeSidebar} />}
+      <aside ref={sidebarRef} id="workspace-sidebar" tabIndex={-1} className={`sidebar${sidebarOpen ? " sidebar-open" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`} inert={isMobileViewport && !sidebarOpen} aria-hidden={isMobileViewport && !sidebarOpen}>
         <Suspense fallback={null}>
           {roles.includes("SUPER_SYSTEM_ADMIN") ? <SuperSystemAdminSidebar {...sidebarProps} />
             : roles.includes("SECRETARIAT_USER") ? <SecretariatSidebar {...sidebarProps} hasWorkspaceAccess={availableWorkspaces.some((workspace) => workspace.code === "SECRETARIAT")} />
@@ -156,9 +211,9 @@ export default function App() {
                           : null}
         </Suspense>
       </aside>
-      <main className={`main-area${sidebarCollapsed ? " main-area-collapsed" : ""}`}>
+      <main className={`main-area${sidebarCollapsed ? " main-area-collapsed" : ""}`} inert={isMobileViewport && sidebarOpen}>
         <header className="topbar">
-          <button className="menu-button" aria-label="Open navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)}><Icon name="menu" size={21} /></button>
+          <button ref={menuButtonRef} className="menu-button" type="button" aria-label={sidebarOpen ? "Close navigation" : "Open navigation"} aria-controls="workspace-sidebar" aria-expanded={sidebarOpen} onClick={() => sidebarOpen ? closeSidebar() : setSidebarOpen(true)}><Icon name="menu" size={21} /></button>
           <div className="breadcrumb"><Link to="/dashboard">Workspace</Link><span className="breadcrumb-separator">/</span><strong>{selectedWorkspace ? `${selectedWorkspace.shortName} · ${location.pathname === `/${selectedWorkspace.slug}` ? "Dashboard" : employeeProfileMatch ? "Employee profile" : location.pathname === "/profile" ? "Account settings" : activePage?.label ?? "Page"}` : location.pathname === "/dashboard" ? "Overview" : employeeProfileMatch ? "Employee profile" : location.pathname === "/profile" ? "Account settings" : activePage?.label ?? "Page"}</strong></div>
           {assignedWorkspace && <GlobalSearch />}
           <span className={`network-status${online ? "" : " network-status-offline"}`} role="status"><Icon name={online ? "wifi" : "offline"} size={14} />{online ? "Online" : "Offline"}</span>

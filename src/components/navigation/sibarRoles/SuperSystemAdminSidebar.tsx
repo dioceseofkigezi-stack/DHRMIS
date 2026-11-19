@@ -8,7 +8,6 @@ export default function SuperSystemAdminSidebar(props: SidebarProps) {
         <OverviewLink onNavigate={props.onNavigate} />
       </div>
       <div className="nav-group">
-        <div className="nav-caption">SYSTEM FUNCTIONS</div>
         <SidebarLink to="/admin/users" label="User access" icon={getPathIcon("/admin/users")} onNavigate={props.onNavigate} />
         <SidebarLink to="/admin/roles" label="Roles & permissions" icon={getPathIcon("/admin/roles")} onNavigate={props.onNavigate} />
         <SidebarLink to="/admin/scopes" label="Organizational access" icon={getPathIcon("/admin/scopes")} onNavigate={props.onNavigate} />

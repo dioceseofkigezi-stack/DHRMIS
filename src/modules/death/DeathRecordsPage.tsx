@@ -216,7 +216,7 @@ export default function DeathRecordsPage() {
       <section className="panel records-panel">
         <div className="records-toolbar"><div><strong>{count.toLocaleString()}</strong><span> death reports</span></div><button className="button button-secondary button-small" onClick={() => void loadRecords()} disabled={loading}>Refresh</button></div>
         {loading ? <div className="table-state" role="status">Loading records…</div> : rows.length ? <>
-          <div className="table-scroll"><table><thead><tr><th>Employee</th><th>Reported</th><th>Status</th><th>Approval</th>{canSubmit && <th>Action</th>}</tr></thead>
+          <div className="table-scroll" role="region" aria-label="Death record cases table. Scroll horizontally to view all columns." tabIndex={0}><table><thead><tr><th>Employee</th><th>Reported</th><th>Status</th><th>Approval</th>{canSubmit && <th>Action</th>}</tr></thead>
             <tbody>{rows.map((record) => <tr key={record.id}>
               <td>{employeeLabels.get(record.employee_id) ?? record.employee_id}</td>
               <td>{record.reported_death_date ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(record.reported_death_date)) : "—"}</td>

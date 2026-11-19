@@ -773,8 +773,6 @@ export default function UserAdministrationPage() {
     <div className="page-content admin-console-page">
       <AdminPageHeader
         title="User access"
-        description="Create accounts with one-time passwords, reset passwords, edit account details, and manage roles, status and account deletion."
-        icon="people"
         actions={
           <button
             className="button button-secondary"

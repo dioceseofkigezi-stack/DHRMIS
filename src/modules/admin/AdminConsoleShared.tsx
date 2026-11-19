@@ -1,12 +1,9 @@
 import type { ReactNode } from "react";
-import type { SystemIcon } from "@/components/ui/Icon";
 
 export const ADMIN_PAGE_SIZE = 25;
 
 export function AdminPageHeader({ title, actions }: {
   title: string;
-  description: string;
-  icon?: SystemIcon;
   actions?: ReactNode;
 }) {
   return <header className="page-heading admin-page-heading">

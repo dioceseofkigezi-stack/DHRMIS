@@ -1,9 +1,10 @@
-.scroller { overflow-x: auto; }
-.table { width: 100%; border-collapse: collapse; text-align: left; }
-.table th { padding: 11px 14px; border-bottom: 1px solid #e9eeeb; color: #708077; background: #fafbfa; font-size: 12pt; font-weight: 700; white-space: nowrap; }
-.table td { max-width: 260px; padding: 12px 14px; overflow: hidden; border-top: 1px solid #eff2f0; color: #526158; font-size: 12pt; text-overflow: ellipsis; white-space: nowrap; }
-.table tbody tr:hover { background: #fbfcfb; }
+.scroller { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.scroller:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.table { width: 100%; min-width: 620px; border-collapse: collapse; color: var(--ink); text-align: left; }
+.table th { padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--muted); background: var(--surface-raised); font-size: var(--font-size-base); font-weight: 700; white-space: nowrap; }
+.table td { max-width: 260px; padding: 12px 14px; overflow: hidden; border-top: 1px solid var(--border); color: var(--ink); font-size: var(--font-size-base); text-overflow: ellipsis; white-space: nowrap; }
+.table tbody tr:hover { background: var(--surface-hover); }
 .sortButton { display: inline-flex; align-items: center; gap: 3px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; text-transform: capitalize; cursor: pointer; }
-.sortButton:focus-visible { outline: 2px solid #01476B; outline-offset: 3px; }
+.sortButton:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 .actionsHeading, .actions { text-align: right; }
 .actions { white-space: nowrap; }

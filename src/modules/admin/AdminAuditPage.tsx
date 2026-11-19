@@ -211,7 +211,7 @@ export default function AdminAuditPage() {
 
   if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Audit activity" description="Review recorded system changes and access to sensitive information. Log entries are read-only." icon="assignment" actions={<button className="button button-secondary" type="button" onClick={() => void loadLogs()} disabled={loading}>Refresh</button>} />
+    <AdminPageHeader title="Audit activity" actions={<button className="button button-secondary" type="button" onClick={() => void loadLogs()} disabled={loading}>Refresh</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     <section className="panel admin-directory-panel" aria-label="Audit history">
       <div className="admin-log-tabs" role="tablist" aria-label="Log type">

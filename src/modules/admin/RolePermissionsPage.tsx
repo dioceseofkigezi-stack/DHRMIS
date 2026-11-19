@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { canAccessModule } from "@/app/modules";
 import { supabase } from "@/core/config";
 import { useAuth } from "@/modules/core/auth/context";
-import { AdminNotice, AdminPageHeader, AdminStatus, adminErrorMessage } from "./AdminConsoleShared";
+import { AdminNotice, AdminStatus, adminErrorMessage } from "./AdminConsoleShared";
 
 interface RoleRecord { role_code: string; role_name: string; scope_type: string; scope_code: string | null; is_system_role: boolean; is_active: boolean }
 interface PermissionRecord { permission_code: string; permission_name: string; permission_group: string; is_sensitive: boolean }
@@ -59,10 +59,17 @@ export default function RolePermissionsPage() {
   const groups = [...new Set(permissions.map((permission) => permission.permission_group))];
 
   if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
-  return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Roles & permissions" description="Review the existing role catalog and the permission assignments used by system policy." icon="role" actions={<Link className="button button-primary" to="/admin/users">Manage user roles</Link>} />
+  return <div className="page-content admin-console-page roles-permissions-page">
+    <header className="page-heading admin-page-heading roles-page-heading">
+      <div className="roles-page-heading-copy">
+        <p className="eyebrow">ACCESS CONTROL</p>
+        <h1>Roles &amp; permissions</h1>
+        <p className="roles-page-intro">Review each role’s scope and the permissions it grants.</p>
+      </div>
+      <div className="admin-heading-actions"><Link className="button button-primary" to="/admin/users">Manage user roles</Link></div>
+    </header>
     {error && <AdminNotice>{error}</AdminNotice>}
-    <section className="panel admin-directory-panel" aria-label="Role and permission catalog">
+    <section className="panel admin-directory-panel roles-catalog-panel" aria-label="Role and permission catalog">
       <div className="admin-table-toolbar">
         <div><strong>{roles.length}</strong><span> roles · </span><strong>{permissions.length}</strong><span> permissions</span></div>
         <div className="admin-filter-controls">
@@ -81,6 +88,7 @@ export default function RolePermissionsPage() {
           return <article className={`admin-role-card${role.role_code === "SUPER_SYSTEM_ADMIN" ? " admin-role-card-platform" : ""}`} key={role.role_code}>
             <header><div><h3>{role.role_name}</h3><code>{role.role_code}</code></div><AdminStatus tone={role.is_active ? "success" : "warning"}>{role.is_active ? "Active" : "Inactive"}</AdminStatus></header>
             <p className="admin-role-scope">{role.scope_type === "SYSTEM" ? "System administration" : `Assigned scope: ${role.scope_code || "not set"}`}</p>
+            <div className="admin-role-permission-heading"><strong>Permissions</strong><span>{rolePermissions.length} assigned</span></div>
             <div className="admin-permission-chips" aria-label={`${role.role_name} permissions`}>
               {rolePermissions.length ? rolePermissions.map((permission) => <span className={permission.is_sensitive ? "admin-permission-chip admin-permission-sensitive" : "admin-permission-chip"} key={permission.permission_code} title={permission.permission_code}>{permission.permission_name}</span>) : <span className="admin-muted-state">No matching permissions</span>}
             </div>

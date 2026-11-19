@@ -1,4 +1,4 @@
-import { SidebarFrame, DepartmentLink, OverviewLink, WorkspaceHomeLink, type SidebarProps } from "./SidebarShared";
+import { SidebarFrame, DepartmentLink, OverviewLink, type SidebarProps } from "./SidebarShared";
 
 export default function PlanningDevelopmentBoardSidebar(props: SidebarProps) {
   return (
@@ -6,8 +6,6 @@ export default function PlanningDevelopmentBoardSidebar(props: SidebarProps) {
       <div className="nav-group">
         <OverviewLink onNavigate={props.onNavigate} />
         {props.hasWorkspaceAccess && <>
-          <WorkspaceHomeLink workspace="planning-development" code="PLANNING_DEVELOPMENT" onNavigate={props.onNavigate} />
-          <div className="nav-caption">PLANNING & DEVELOPMENT WORKSPACE</div>
           <DepartmentLink workspace="planning-development" path="/people" label="Project employees" onNavigate={props.onNavigate} />
           <DepartmentLink workspace="planning-development" path="/assignments" label="Assignments" onNavigate={props.onNavigate} />
           <DepartmentLink workspace="planning-development" path="/recruitment" label="Recruitment" onNavigate={props.onNavigate} />

@@ -104,7 +104,7 @@ export default function SecurityEventsPage() {
     : pending?.action === "resolve" ? { title: "Resolve security event?", label: "Resolve event", body: "Mark this alert as resolved. This status change will be recorded in the audit trail." }
       : { title: "Reopen security event?", label: "Reopen event", body: "Return this event to the active security queue for further review." };
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Security events" description="Review system alerts, record acknowledgement, and track resolution status." icon="security" actions={<button className="button button-secondary" type="button" onClick={() => void loadEvents()} disabled={loading}>Refresh</button>} />
+    <AdminPageHeader title="Security events" actions={<button className="button button-secondary" type="button" onClick={() => void loadEvents()} disabled={loading}>Refresh</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     {!online && <AdminNotice tone="warning">You are offline. Security event updates are unavailable.</AdminNotice>}
     <section className="panel admin-directory-panel" aria-label="Security event log">

@@ -285,9 +285,9 @@ function ActivityCandles({ candles }: { candles: ActivityCandle[] }) {
   </div>;
 }
 
-function ChartCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return <section className="panel admin-chart-card">
-    <header className="admin-chart-heading"><div><h2>{title}</h2><p>{description}</p></div></header>
+    <header className="admin-chart-heading"><h2>{title}</h2></header>
     {children}
   </section>;
 }
@@ -310,22 +310,22 @@ export default function AdminDashboardCharts({ accounts, activeAccounts, suspend
   return <section className="admin-chart-section" aria-label="System activity charts">
     <header className="admin-section-heading"><div><span className="admin-section-kicker">System overview</span><h2>Activity and access patterns</h2></div><span className="admin-chart-period">Live data · refreshed with dashboard</span></header>
     <div className="admin-chart-grid">
-      <ChartCard title="Account access status" description="Role assignments grouped by current access state.">
+      <ChartCard title="Account access status">
         {loading ? <ChartLoading /> : accountDataAvailable ? <AccountDonut segments={accountSegments} /> : <ChartUnavailable message="Account status totals are unavailable." />}
       </ChartCard>
-      <ChartCard title="Audit activity trend" description="Daily audit entries and failed actions · past 14 days.">
+      <ChartCard title="Audit activity trend">
         {loading ? <ChartLoading /> : hasAuditData ? <>
           <LineChart points={points} />
           <div className="admin-chart-legend admin-chart-inline-legend"><span><i className="admin-legend-line admin-legend-line-total" />All activity</span><span><i className="admin-legend-line admin-legend-line-failure" />Failures</span></div>
         </> : <ChartUnavailable />}
       </ChartCard>
-      <ChartCard title="Hourly activity range" description="Daily open, high, low and close audit volume per hour · past 7 days.">
+      <ChartCard title="Hourly activity range">
         {loading ? <ChartLoading /> : hasAuditData ? <>
           <ActivityCandles candles={candles} />
           <div className="admin-chart-legend admin-chart-inline-legend"><span><i className="admin-legend-candle admin-legend-candle-up" />Activity rose</span><span><i className="admin-legend-candle admin-legend-candle-down" />Activity fell</span></div>
         </> : <ChartUnavailable />}
       </ChartCard>
-      <ChartCard title="Activity by hour" description="Audit entries grouped by hour of day · past 7 complete days.">
+      <ChartCard title="Activity by hour">
         {loading ? <ChartLoading /> : hasAuditData ? <Histogram values={histogram} /> : <ChartUnavailable />}
       </ChartCard>
     </div>

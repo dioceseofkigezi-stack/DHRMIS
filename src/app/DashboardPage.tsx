@@ -2,10 +2,11 @@ import { lazy, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/core/config";
 import { canAccessModule, canWriteModule } from "@/app/modules";
+import { getWorkspaceIcon, Icon } from "@/components/ui/Icon";
+import WorkspaceDashboardCharts, { type WorkspaceAnalyticsRow } from "@/app/WorkspaceDashboardCharts";
 import {
   canAccessWorkspace,
   canManageWorkspacePersonnel,
-  getWorkspaceNavigation,
   type PersonnelWorkspace,
   workspacePath,
 } from "@/core/organizational-scope/workspaces";
@@ -81,7 +82,9 @@ function WorkspaceCards({ workspaces }: { workspaces: PersonnelWorkspace[] }) {
     <section className="workspace-card-grid" aria-label="Authorized personnel workspaces">
       {workspaces.map((workspace) => (
         <Link className="workspace-card" to={`/${workspace.slug}`} key={workspace.slug}>
+          <span className="workspace-card-icon" aria-hidden="true"><Icon name={getWorkspaceIcon(workspace.code)} size={19} /></span>
           <span className="workspace-card-copy"><strong>{workspace.name}</strong></span>
+          <span className="workspace-card-arrow" aria-hidden="true">→</span>
         </Link>
       ))}
     </section>
@@ -98,6 +101,8 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
   const activeDomain = workspace ? personnelDomains.find((domain) => domain.code === workspace.code) : undefined;
   const metricDefinitions = useMemo(() => workspace ? metricsForWorkspace(workspace, roles) : [], [workspace, roles]);
   const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [workspaceAnalytics, setWorkspaceAnalytics] = useState<WorkspaceAnalyticsRow[] | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(Boolean(workspace));
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -105,31 +110,44 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
     async function loadMetrics() {
       if (!workspace || !hasWorkspaceAccess || !activeDomain) {
         setMetrics([]);
+        setWorkspaceAnalytics(null);
+        setMetricsLoading(false);
         setError("");
         return;
       }
+      setMetricsLoading(true);
       if (!supabase) {
         setMetrics(metricDefinitions.map((metric) => ({ ...metric, value: null })));
+        setWorkspaceAnalytics(null);
+        setMetricsLoading(false);
         setError("Configure Supabase to load live workspace data.");
         return;
       }
 
-      const results = await Promise.all(metricDefinitions.map(async (metric) => {
-        if (["archdeaconries", "parishes", "local_churches"].includes(metric.table)) {
-          const { count, error: queryError } = await supabase!.from(metric.table).select("id", { count: "exact", head: true });
-          return { ...metric, value: queryError ? null : count ?? 0, queryError };
-        }
-        const { data, error: queryError } = await supabase!.rpc("count_personnel_domain_records", {
-          target_domain_id: activeDomain.id,
-          resource_code: metric.table,
-        });
-        const parsedCount = Number(data);
-        const count = Number.isFinite(parsedCount) ? parsedCount : null;
-        return { ...metric, value: queryError ? null : count, queryError };
-      }));
+      const [results, analyticsResult] = await Promise.all([
+        Promise.all(metricDefinitions.map(async (metric) => {
+          if (["archdeaconries", "parishes", "local_churches"].includes(metric.table)) {
+            const { count, error: queryError } = await supabase!.from(metric.table).select("id", { count: "exact", head: true });
+            return { ...metric, value: queryError ? null : count ?? 0, queryError };
+          }
+          const { data, error: queryError } = await supabase!.rpc("count_personnel_domain_records", {
+            target_domain_id: activeDomain.id,
+            resource_code: metric.table,
+          });
+          const parsedCount = Number(data);
+          const count = Number.isFinite(parsedCount) ? parsedCount : null;
+          return { ...metric, value: queryError ? null : count, queryError };
+        })),
+        supabase.rpc("personnel_dashboard_analytics", { target_domain_id: activeDomain.id, p_days: 30 }),
+      ]);
       if (!active) return;
+      const analytics = analyticsResult.error ? null : (analyticsResult.data as WorkspaceAnalyticsRow[] | null) ?? [];
       setMetrics(results.map(({ queryError: _queryError, ...metric }) => metric));
-      setError(results.some((result) => result.queryError) ? "Some workspace totals could not be loaded. Check your access or refresh the page." : "");
+      setWorkspaceAnalytics(analytics);
+      setError(results.some((result) => result.queryError) || analyticsResult.error
+        ? "Some workspace totals or chart data could not be loaded. Check your access or refresh the page."
+        : "");
+      setMetricsLoading(false);
     }
     void loadMetrics();
     return () => { active = false; };
@@ -162,8 +180,6 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
     );
   }
 
-  const quickLinks = getWorkspaceNavigation(workspace, roles).filter((item) => canAccessModule(item.path, roles));
-
   return (
     <div className="page-content">
       <header className="page-heading">
@@ -171,30 +187,7 @@ export default function DashboardPage({ workspace, workspaces = [] }: {
         {canManageWorkspacePersonnel(workspace, roles) && canWriteModule("/people", roles) && <Link className="button button-primary" to={workspacePath("/people", workspace.slug)}>Add employee</Link>}
       </header>
       {error && <div className="notice notice-warning" role="status">{error}</div>}
-      <section className="metric-grid" aria-label={`${workspace.shortName} totals`}>
-        {metrics.map((metric) => (
-          <article className="metric-card" key={metric.table}>
-            <div className="metric-label">{metric.label}</div>
-            <div className="metric-value">{metric.value === null ? "—" : metric.value.toLocaleString()}</div>
-          </article>
-        ))}
-        {metrics.length === 0 && <div className="panel dashboard-note">No records available</div>}
-      </section>
-      <div className="dashboard-columns">
-        <section className="panel" aria-label={`${workspace.shortName} navigation`}>
-          <div className="quick-link-grid">
-            {quickLinks.map((item) => (
-              <Link className="quick-link" to={workspacePath(item.path, workspace.slug)} key={item.path}>
-                <span><strong>{item.label}</strong></span>
-              </Link>
-            ))}
-          </div>
-        </section>
-        <aside className="panel panel-accent">
-          {workspace.kind === "secretariat" && <Link className="text-link" to={workspacePath("/organization/archdeaconries", workspace.slug)}>Ecclesiastical structure</Link>}
-          {workspace.kind === "board" && <Link className="text-link" to={workspacePath("/organization/institutions", workspace.slug)}>Board institutions</Link>}
-        </aside>
-      </div>
+      <WorkspaceDashboardCharts workspaceName={workspace.shortName} metrics={metrics} analytics={workspaceAnalytics} loading={metricsLoading} />
     </div>
   );
 }

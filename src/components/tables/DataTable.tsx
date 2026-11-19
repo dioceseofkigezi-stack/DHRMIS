@@ -18,7 +18,7 @@ interface Props<Row extends Record<string, unknown> & { id: string }> {
 }
 
 export default function DataTable<Row extends Record<string, unknown> & { id: string }>({ rows, columns, sortKey, sortAscending, onSort, actions }: Props<Row>) {
-  return <div className={styles.scroller}>
+  return <div className={styles.scroller} role="region" aria-label="Records table. Scroll horizontally to view all columns." tabIndex={0}>
     <table className={styles.table}>
       <thead><tr>{columns.map((column) => <th scope="col" key={column.key}>
         {column.sortable === false ? column.label : <button type="button" className={styles.sortButton} onClick={() => onSort(column.key)} aria-label={`Sort by ${column.label}`} aria-sort={sortKey === column.key ? sortAscending ? "ascending" : "descending" : "none"}>{column.label}{sortKey === column.key && (sortAscending ? "↑" : "↓")}</button>}

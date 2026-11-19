@@ -1,4 +1,4 @@
-import { SidebarFrame, DepartmentLink, OverviewLink, WorkspaceHomeLink, type SidebarProps } from "./SidebarShared";
+import { SidebarFrame, DepartmentLink, OverviewLink, type SidebarProps } from "./SidebarShared";
 
 export default function IctBoardSidebar(props: SidebarProps) {
   return (
@@ -6,8 +6,6 @@ export default function IctBoardSidebar(props: SidebarProps) {
       <div className="nav-group">
         <OverviewLink onNavigate={props.onNavigate} />
         {props.hasWorkspaceAccess && <>
-          <WorkspaceHomeLink workspace="ict" code="ICT" onNavigate={props.onNavigate} />
-          <div className="nav-caption">ICT WORKSPACE</div>
           <DepartmentLink workspace="ict" path="/people" label="ICT employees" onNavigate={props.onNavigate} />
           <DepartmentLink workspace="ict" path="/assignments" label="Assignments" onNavigate={props.onNavigate} />
           <DepartmentLink workspace="ict" path="/recruitment" label="Recruitment" onNavigate={props.onNavigate} />

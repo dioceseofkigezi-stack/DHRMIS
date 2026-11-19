@@ -1,4 +1,4 @@
-import { SidebarFrame, DepartmentLink, OverviewLink, WorkspaceHomeLink, type SidebarProps } from "./SidebarShared";
+import { SidebarFrame, DepartmentLink, OverviewLink, type SidebarProps } from "./SidebarShared";
 
 export default function MissionBoardSidebar(props: SidebarProps) {
   return (
@@ -6,8 +6,6 @@ export default function MissionBoardSidebar(props: SidebarProps) {
       <div className="nav-group">
         <OverviewLink onNavigate={props.onNavigate} />
         {props.hasWorkspaceAccess && <>
-          <WorkspaceHomeLink workspace="mission" code="MISSION" onNavigate={props.onNavigate} />
-          <div className="nav-caption">MISSION WORKSPACE</div>
           <DepartmentLink workspace="mission" path="/people" label="Mission employees" onNavigate={props.onNavigate} />
           <DepartmentLink workspace="mission" path="/assignments" label="Assignments" onNavigate={props.onNavigate} />
           <DepartmentLink workspace="mission" path="/recruitment" label="Recruitment" onNavigate={props.onNavigate} />

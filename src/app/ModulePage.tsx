@@ -126,6 +126,8 @@ export default function ModulePage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const editDialog = useRef<HTMLElement>(null);
+  const dialogReturnFocus = useRef<HTMLElement | null>(null);
   const [selected, setSelected] = useState<Row | null>(null);
   const [values, setValues] = useState<FormValues>({});
   const [saving, setSaving] = useState(false);
@@ -138,6 +140,7 @@ export default function ModulePage() {
   const [count, setCount] = useState(0);
   const [sortKey, setSortKey] = useState("");
   const [sortAscending, setSortAscending] = useState(true);
+  const savingRef = useRef(saving);
 
   useEffect(() => {
     setPage(0);
@@ -153,6 +156,41 @@ export default function ModulePage() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    if (!modalOpen || confirmSystemConfigSave) return;
+    const previousFocus = dialogReturnFocus.current;
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusableElements = () => Array.from(editDialog.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+      .filter((element) => element.offsetParent !== null);
+    focusableElements()[0]?.focus();
+    function handleDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        if (!savingRef.current) setModalOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = focusableElements();
+      if (!focusable.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !editDialog.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !editDialog.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", handleDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleDialogKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [modalOpen, confirmSystemConfigSave]);
 
   const searchColumn = useMemo(() => {
     if (!config) return undefined;
@@ -328,6 +366,7 @@ export default function ModulePage() {
   }
 
   function openCreate() {
+    dialogReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     void loadEmployeeDirectory();
     void loadLookupChoices();
     setSelected(null);
@@ -337,6 +376,7 @@ export default function ModulePage() {
 
   function openEdit(row: Row) {
     if (!canEditExisting) return;
+    dialogReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     void loadEmployeeDirectory();
     void loadLookupChoices();
     setSelected(row);
@@ -351,6 +391,7 @@ export default function ModulePage() {
       return;
     }
     if (!supabase || !pageConfig.table) return;
+    savingRef.current = true;
     setSaving(true);
     setError("");
     try {
@@ -419,6 +460,7 @@ export default function ModulePage() {
     } catch (reason) {
       setError(getErrorMessage(reason));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -470,7 +512,7 @@ export default function ModulePage() {
           record_type: pageConfig.table,
           data_category: pageConfig.readAuditCategory,
           purpose: `Exported current page from ${pageConfig.label}`,
-          accessed_fields: columns.map((column) => column.key),
+          accessed_fields: columns,
         })));
         if (auditError) throw new Error("Export was not started because the access record could not be written.");
       }
@@ -534,7 +576,7 @@ export default function ModulePage() {
           </> : <div className="empty-state"><h2>{debouncedSearch ? "No matching records" : "No records yet"}</h2>{canEdit && !debouncedSearch && <button className="button button-primary" onClick={openCreate}>Create a record</button>}</div>}
         </section>}
         {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
-          <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+          <section ref={editDialog} className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <div className="modal-heading"><h2 id="modal-title">{selected ? "Edit record" : "New record"}</h2><button type="button" className="text-button" onClick={() => setModalOpen(false)} disabled={saving}>Close</button></div>
             <form onSubmit={(event) => { if (pageConfig.path === "/settings") { event.preventDefault(); setConfirmSystemConfigSave(true); } else void handleSave(event); }}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} employeesLoading={employeesLoading} lookups={lookupChoices} lookupsLoading={lookupsLoading} scopeType={String(values.scope_type ?? "")} onChange={(value) => setValues((current) => field.name === "scope_type" ? { ...current, scope_type: value, scope_id: "" } : { ...current, [field.name]: value })} />)}</div>
               <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || employeesLoading || lookupsLoading || !online}>{saving ? "Saving…" : <>{selected ? "Save changes" : "Create record"}</>}</button></div>

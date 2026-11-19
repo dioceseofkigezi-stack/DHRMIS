@@ -106,7 +106,7 @@ export default function SessionManagementPage() {
 
   if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Sessions & devices" description="Review tracked sign-ins and revoke session access when a device should no longer be trusted." icon="shield" actions={<button className="button button-secondary" type="button" onClick={() => void loadSessions()} disabled={loading}>Refresh</button>} />
+    <AdminPageHeader title="Sessions & devices" actions={<button className="button button-secondary" type="button" onClick={() => void loadSessions()} disabled={loading}>Refresh</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     {!online && <AdminNotice tone="warning">You are offline. Session revocation is unavailable until the connection returns.</AdminNotice>}
     <section className="panel admin-directory-panel" aria-label="Sign-in sessions">

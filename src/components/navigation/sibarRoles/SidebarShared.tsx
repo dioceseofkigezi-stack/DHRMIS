@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { getPathIcon, getWorkspaceIcon, Icon, type SystemIcon } from "@/components/ui/Icon";
+import { getPathIcon, Icon, type SystemIcon } from "@/components/ui/Icon";
 import { workspacePath } from "@/core/organizational-scope/workspaces";
 
 export interface SidebarProps {
@@ -35,7 +35,6 @@ export function SidebarFrame({ roleLabel, accountName, accountAvatarUrl, signing
           <Icon name={sidebarCollapsed ? "arrowRight" : "arrowLeft"} size={16} />
         </button>
       </div>
-      <div className="nav-caption">{roleLabel}</div>
       <nav className="module-nav" aria-label={`${roleLabel} navigation`}>
         {children}
       </nav>
@@ -64,7 +63,7 @@ export function SidebarLink({ to, label, icon, onNavigate }: {
 }) {
   return (
     <NavLink to={to} end onClick={onNavigate} aria-label={label} title={label} className={({ isActive }) => `nav-link${isActive ? " nav-link-active" : ""}`}>
-      <span className="nav-icon"><Icon name={icon} size={15} /></span><span className="nav-label">{label}</span>
+      <span className="nav-icon"><Icon name={icon} size={19} /></span><span className="nav-label">{label}</span>
     </NavLink>
   );
 }
@@ -82,10 +81,3 @@ export function OverviewLink({ onNavigate }: { onNavigate: () => void }) {
   return <SidebarLink to="/dashboard" label="Overview" icon="overview" onNavigate={onNavigate} />;
 }
 
-export function WorkspaceHomeLink({ workspace, code, onNavigate }: {
-  workspace: string;
-  code: string;
-  onNavigate: () => void;
-}) {
-  return <SidebarLink to={`/${workspace}`} label="Workspace dashboard" icon={getWorkspaceIcon(code)} onNavigate={onNavigate} />;
-}

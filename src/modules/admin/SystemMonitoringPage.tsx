@@ -78,7 +78,7 @@ export default function SystemMonitoringPage() {
 
   if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="System health & monitoring" description="Check core platform data services and review failed system activity from the last 24 hours." icon="monitor" actions={<button className="button button-secondary" type="button" onClick={() => void loadMonitoring()} disabled={loading}>Run checks</button>} />
+    <AdminPageHeader title="System health & monitoring" actions={<button className="button button-secondary" type="button" onClick={() => void loadMonitoring()} disabled={loading}>Run checks</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     {!online && <AdminNotice tone="warning">You are offline. Live system checks and log refreshes are unavailable.</AdminNotice>}
     <section className="admin-health-grid" aria-label="Platform service checks">

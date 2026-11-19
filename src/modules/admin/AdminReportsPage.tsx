@@ -324,13 +324,12 @@ export default function AdminReportsPage() {
 
   if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Administrative reports" description="Create summary reports from account, session, security and system activity records." icon="chart" actions={<button className="button button-secondary" type="button" onClick={() => void loadReport()} disabled={loading}>Refresh report</button>} />
+    <AdminPageHeader title="Administrative reports" actions={<button className="button button-secondary" type="button" onClick={() => void loadReport()} disabled={loading}>Refresh report</button>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     <section className="panel admin-report-overview" aria-label="Report details">
       <div className="admin-report-overview-copy">
         <span className="eyebrow">REPORT COVERAGE</span>
         <h2>Administrative activity summary</h2>
-        <p>Date filters use each record’s creation or event date. Account, session and security status totals reflect their current status.</p>
       </div>
       <dl className="admin-report-period-details">
         <div><dt>Report period</dt><dd>{fromDate && toDate ? `${formatReportDate(fromDate)} – ${formatReportDate(toDate)}` : fromDate ? `From ${formatReportDate(fromDate)}` : toDate ? `Through ${formatReportDate(toDate)}` : "All available history"}</dd></div>
@@ -376,7 +375,6 @@ export default function AdminReportsPage() {
                   <div className="admin-report-card-head">
                     <div>
                       <h3>{metric.label}</h3>
-                      <p className="admin-report-card-description">{metric.description}</p>
                     </div>
                     <div className="admin-report-card-value">
                       <strong>{metric.count === null ? "Unavailable" : metric.count.toLocaleString()}</strong>

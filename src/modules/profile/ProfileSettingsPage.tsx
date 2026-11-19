@@ -314,7 +314,7 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
   return (
     <div className="page-content profile-settings-page">
       <div className="page-heading">
-        <div><p className="eyebrow">YOUR ACCOUNT</p><h1>Account settings</h1><p className="muted">Update your profile details, sign-in email, password and picture.</p></div>
+        <div><p className="eyebrow">YOUR ACCOUNT</p><h1>Account settings</h1></div>
       </div>
 
       <section className="panel profile-photo-panel" aria-labelledby="profile-photo-title">
@@ -324,7 +324,6 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
         <div className="profile-photo-copy">
           <p className="eyebrow">PROFILE PHOTO</p>
           <h2 id="profile-photo-title">{details.fullName || "Your profile"}</h2>
-          <p className="muted">A clear photo helps people recognize your account. JPG, PNG or WebP, up to 3 MB.</p>
           {photoError && <div className="notice notice-error" role="alert">{photoError}</div>}
           {photoMessage && <div className="notice notice-success" role="status">{photoMessage}</div>}
           <div className="profile-photo-actions">
@@ -343,7 +342,7 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
       <div className="profile-settings-grid">
         <div className="profile-settings-personal">
           <form className="panel profile-settings-card" onSubmit={(event) => void saveDetails(event)}>
-            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="people" size={17} /></span><div><h2>Personal details</h2><p className="muted">The details shown with your account.</p></div></div>
+            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="people" size={17} /></span><div><h2>Personal details</h2></div></div>
             {profileError && <div className="notice notice-error" role="alert">{profileError}</div>}
             {profileMessage && <div className="notice notice-success" role="status">{profileMessage}</div>}
             <label className="field">Full name
@@ -356,7 +355,7 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
           </form>
 
           <form className="panel profile-settings-card" onSubmit={(event) => void saveUsername(event)}>
-            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="role" size={17} /></span><div><h2>Username</h2><p className="muted">An optional unique account name. Sign in with your email.</p></div></div>
+            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="role" size={17} /></span><div><h2>Username</h2></div></div>
             {usernameError && <div className="notice notice-error" role="alert">{usernameError}</div>}
             {usernameMessage && <div className="notice notice-success" role="status">{usernameMessage}</div>}
             <label className="field">Username
@@ -369,7 +368,7 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
 
         <div className="profile-settings-security">
           <form className="panel profile-settings-card" onSubmit={(event) => void saveEmail(event)}>
-            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="assignment" size={17} /></span><div><h2>Email address</h2><p className="muted">Used to sign in and recover your account. Changes take effect immediately.</p></div></div>
+            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="assignment" size={17} /></span><div><h2>Email address</h2></div></div>
             {emailError && <div className="notice notice-error" role="alert">{emailError}</div>}
             {emailMessage && <div className="notice notice-success" role="status">{emailMessage}</div>}
             <label className="field">Email
@@ -379,7 +378,7 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
           </form>
 
           <form className="panel profile-settings-card" onSubmit={(event) => void changePassword(event)}>
-            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="security" size={17} /></span><div><h2>Change password</h2><p className="muted">Confirm your current password before choosing a new one.</p></div></div>
+            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="security" size={17} /></span><div><h2>Change password</h2></div></div>
             {passwordError && <div className="notice notice-error" role="alert">{passwordError}</div>}
             {passwordMessage && <div className="notice notice-success" role="status">{passwordMessage}</div>}
             <label className="field">Current password

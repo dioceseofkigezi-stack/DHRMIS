@@ -82,7 +82,7 @@ function DataSections({ sections, rows }: { sections: DataSection[]; rows: Recor
     const records = rows[section.table] ?? [];
     return <section className="panel profile-data-panel" key={section.table}>
       <div className="profile-panel-heading"><h2>{section.title}</h2><span>{records.length} {records.length === 1 ? "record" : "records"}</span></div>
-      {records.length ? <div className="table-scroll"><table><thead><tr>{section.columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{records.map((row, index) => <tr key={String(row.id ?? `${section.table}-${index}`)}>{section.columns.map((column) => <td key={column} title={displayValue(row[column])}>{displayValue(row[column])}</td>)}</tr>)}</tbody></table></div> : <p className="profile-empty">No {section.title.toLowerCase()} on record.</p>}
+      {records.length ? <div className="table-scroll" role="region" aria-label={`${section.title} table. Scroll horizontally to view all columns.`} tabIndex={0}><table><thead><tr>{section.columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{records.map((row, index) => <tr key={String(row.id ?? `${section.table}-${index}`)}>{section.columns.map((column) => <td key={column} title={displayValue(row[column])}>{displayValue(row[column])}</td>)}</tr>)}</tbody></table></div> : <p className="profile-empty">No {section.title.toLowerCase()} on record.</p>}
     </section>;
   })}</div>;
 }

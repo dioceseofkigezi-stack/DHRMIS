@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { canAccessModule, canExportModule, canWriteModule, getModule, modulePages } from "@/app/modules";
 
+const standalonePagePaths = new Set(["/admin/roles", "/admin/reports", "/admin/monitoring"]);
+const dataBackedModules = modulePages.filter((module) => !standalonePagePaths.has(module.path));
+
 describe("system module registry", () => {
   it("defines unique, absolute routes for the system pages", () => {
     const routes = modulePages.map((module) => module.path);
@@ -9,9 +12,16 @@ describe("system module registry", () => {
     expect(routes.every((route) => route.startsWith("/"))).toBe(true);
   });
 
-  it("provides a data table for every configured module", () => {
-    expect(modulePages.every((module) => Boolean(module.table))).toBe(true);
-    expect(modulePages.filter((module) => !module.readOnly).every((module) => Boolean(module.fields?.length))).toBe(true);
+  it("provides a data table for every data-backed module", () => {
+    expect(dataBackedModules.every((module) => Boolean(module.table))).toBe(true);
+    expect(dataBackedModules.filter((module) => !module.readOnly).every((module) => Boolean(module.fields?.length))).toBe(true);
+  });
+
+  it("keeps standalone administration pages registered without CRUD tables", () => {
+    for (const path of standalonePagePaths) {
+      expect(getModule(path)?.path).toBe(path);
+      expect(getModule(path)?.table).toBeUndefined();
+    }
   });
 
   it("marks audit and security event pages read-only", () => {
@@ -57,7 +67,7 @@ describe("system module registry", () => {
   });
 
   it("keeps all data-backed module routes connected to existing tables", () => {
-    expect(modulePages.every((module) => module.table && module.columns?.length)).toBe(true);
+    expect(dataBackedModules.every((module) => module.table && module.columns?.length)).toBe(true);
     expect(modulePages.some((module) => module.path === "/documents" && module.table === "documents")).toBe(true);
   });
 });

@@ -70,7 +70,7 @@ export default function ScopeAdministrationPage() {
 
   if (!canView) return <div className="page-content"><div className="empty-state"><h2>Access restricted</h2></div></div>;
   return <div className="page-content admin-console-page">
-    <AdminPageHeader title="Organizational access" description="Review account scopes. A user’s primary personnel scope follows their assigned role and is synchronized by the database." icon="target" actions={<Link className="button button-primary" to="/admin/users">Manage account roles</Link>} />
+    <AdminPageHeader title="Organizational access" actions={<Link className="button button-primary" to="/admin/users">Manage account roles</Link>} />
     {error && <AdminNotice>{error}</AdminNotice>}
     <section className="panel admin-directory-panel" aria-label="Organizational scope assignments">
       <div className="admin-table-toolbar">

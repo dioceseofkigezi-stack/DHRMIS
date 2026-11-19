@@ -1,4 +1,4 @@
-import { SidebarFrame, DepartmentLink, OverviewLink, WorkspaceHomeLink, type SidebarProps } from "./SidebarShared";
+import { SidebarFrame, DepartmentLink, OverviewLink, type SidebarProps } from "./SidebarShared";
 
 export default function LandFinanceBoardSidebar(props: SidebarProps) {
   return (
@@ -6,8 +6,6 @@ export default function LandFinanceBoardSidebar(props: SidebarProps) {
       <div className="nav-group">
         <OverviewLink onNavigate={props.onNavigate} />
         {props.hasWorkspaceAccess && <>
-          <WorkspaceHomeLink workspace="land-finance" code="LAND_FINANCE" onNavigate={props.onNavigate} />
-          <div className="nav-caption">LAND & FINANCE WORKSPACE</div>
           <DepartmentLink workspace="land-finance" path="/people" label="Board employees" onNavigate={props.onNavigate} />
           <DepartmentLink workspace="land-finance" path="/assignments" label="Assignments" onNavigate={props.onNavigate} />
           <DepartmentLink workspace="land-finance" path="/recruitment" label="Recruitment" onNavigate={props.onNavigate} />
