@@ -35,6 +35,16 @@ function sessionIdFromToken(accessToken: string) {
   }
 }
 
+function redactCredentialMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactCredentialMetadata);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, nestedValue]) => {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const isCredential = /(password|passwd|passphrase|secret|token|credential|apikey|accesskey|privatekey|servicekey|servicerole|authorization|authheader|bearer|jwt|cookie|sessionid|encryptionkey|signingkey)/.test(normalizedKey);
+    return [key, isCredential ? "[REDACTED: CREDENTIAL OR SECRET]" : redactCredentialMetadata(nestedValue)];
+  }));
+}
+
 function editableDetails(user: {
   email?: string;
   user_metadata?: Record<string, unknown>;
@@ -97,7 +107,7 @@ Deno.serve(async (request: Request) => {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     global: { headers: { Authorization: authorization } },
   });
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+  let adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
 
@@ -106,6 +116,10 @@ Deno.serve(async (request: Request) => {
   if (callerData.user.app_metadata?.must_change_password === true) {
     return respond(403, { message: "Change your temporary password before using account administration." });
   }
+  adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    global: { headers: { "x-audit-actor-id": callerData.user.id } },
+  });
   const { data: roleRows, error: roleError } = await adminClient
     .from("user_roles")
     .select("*")
@@ -126,6 +140,13 @@ Deno.serve(async (request: Request) => {
   if (!trackedSession || !(roleRows ?? []).some((row) => isCurrentActiveSuperAdmin(row as Record<string, unknown>))) {
     return respond(403, { message: "Only an active Super/System Administrator session can edit account details." });
   }
+  adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    global: { headers: {
+      "x-audit-actor-id": callerData.user.id,
+      "x-audit-session-id": trackedSession.id,
+    } },
+  });
 
   let body: unknown;
   try {
@@ -182,8 +203,15 @@ Deno.serve(async (request: Request) => {
       record_id: userId,
       record_type: "auth.users",
       result: "Success",
-      before_values: { must_change_password: targetUser.app_metadata?.must_change_password === true },
-      after_values: { must_change_password: true, active_sessions_revoked: true },
+      before_values: {
+        password: "[REDACTED: CREDENTIAL OR SECRET]",
+        must_change_password: targetUser.app_metadata?.must_change_password === true,
+      },
+      after_values: {
+        password: "[REDACTED: CREDENTIAL OR SECRET]",
+        must_change_password: true,
+        active_sessions_revoked: true,
+      },
       purpose: "Super/System Administrator reset a user's password.",
       context: "Generated a one-time password for display to the administrator; the user must change it at first sign-in.",
       session_id: trackedSession.id,
@@ -198,9 +226,14 @@ Deno.serve(async (request: Request) => {
 
   if (action === "delete") {
     const { data: targetRoles, error: targetRolesError } = await adminClient.from("user_roles")
-      .select("role_code,isactive,issuspended,accountexpiry,lockeduntil")
+      .select("*")
       .eq("user_id", userId);
     if (targetRolesError) return respond(500, { message: "The account's role assignments could not be checked." });
+    const { data: targetUsername, error: targetUsernameError } = await adminClient.from("admin_usernames")
+      .select("username")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (targetUsernameError) return respond(500, { message: "The account username could not be checked." });
     const targetIsActiveSystemAdmin = (targetRoles ?? []).some((role) =>
       role.role_code === "SUPER_SYSTEM_ADMIN" && isCurrentActiveSuperAdmin(role as Record<string, unknown>));
     if (targetIsActiveSystemAdmin) {
@@ -243,7 +276,10 @@ Deno.serve(async (request: Request) => {
       before_values: {
         email: targetUser.email ?? null,
         full_name: targetUser.user_metadata?.full_name ?? targetUser.user_metadata?.name ?? null,
-        role_codes: (targetRoles ?? []).map((role) => role.role_code),
+        username: targetUsername?.username ?? null,
+        user_metadata: redactCredentialMetadata(targetUser.user_metadata ?? {}),
+        app_metadata: redactCredentialMetadata(targetUser.app_metadata ?? {}),
+        roles: redactCredentialMetadata(targetRoles ?? []),
       },
       after_values: { deleted: true },
       purpose: "Super/System Administrator deleted a user account.",

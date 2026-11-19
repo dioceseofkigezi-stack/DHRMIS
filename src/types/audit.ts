@@ -14,6 +14,7 @@ export interface AuditLog {
   action: AuditAction;
   module: string;
   recordId?: string;
+  recordKey?: Record<string, unknown>;
   recordType?: string;
   employeeId?: string;
   scopeIds?: string[];

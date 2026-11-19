@@ -17,17 +17,18 @@ type Row = Record<string, unknown> & { id: string };
 type FormValues = Record<string, unknown>;
 type EmployeeDirectoryEntry = { id: string; employee_number: string; first_name: string; last_name: string };
 type LookupSource = { table: string; columns: string; orderBy: string };
+type LookupOption = SearchableOption & { boardId?: string | null; personnelDomainId?: string | null };
 const lookupSources: Record<LookupKind, LookupSource> = {
   board: { table: "boards", columns: "id,code,name", orderBy: "name" },
-  department: { table: "departments", columns: "id,code,name", orderBy: "name" },
-  institution: { table: "institutions", columns: "id,code,name,institution_type,location", orderBy: "name" },
+  department: { table: "departments", columns: "id,code,name,board_id", orderBy: "name" },
+  institution: { table: "institutions", columns: "id,code,name,institution_type,location,board_id", orderBy: "name" },
   archdeaconry: { table: "archdeaconries", columns: "id,name,region", orderBy: "name" },
   parish: { table: "parishes", columns: "id,name,region", orderBy: "name" },
   local_church: { table: "local_churches", columns: "id,name", orderBy: "name" },
   position: { table: "positions", columns: "id,code,title", orderBy: "title" },
   grade: { table: "grades", columns: "id,code,title,salary_scale", orderBy: "title" },
-  personnel_domain: { table: "personnel_domains", columns: "id,code,name", orderBy: "name" },
-  assignment: { table: "assignments", columns: "id,employee_id,assignment_type,start_date,status", orderBy: "start_date" },
+  personnel_domain: { table: "personnel_domains", columns: "id,code,name,board_id", orderBy: "name" },
+  assignment: { table: "assignments", columns: "id,employee_id,assignment_type,start_date,status,personnel_domain_id", orderBy: "start_date" },
   vacancy: { table: "vacancies", columns: "id,vacancy_code,position,status", orderBy: "vacancy_code" },
   applicant: { table: "applicants", columns: "id,full_name,email,status", orderBy: "full_name" },
   document: { table: "documents", columns: "id,original_file_name,document_type,created_at", orderBy: "original_file_name" },
@@ -68,17 +69,35 @@ function getInitialValues(fields: FieldConfig[], defaults: FormValues = {}) {
   return Object.fromEntries(fields.map((field) => [field.name, defaults[field.name] ?? (field.kind === "checkbox" ? false : "")]));
 }
 
-function EditField({ field, value, onChange, employees, employeesLoading, lookups, lookupsLoading, scopeType }: {
+function getTomorrowDateInputValue() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+}
+
+function EditField({ field, value, onChange, employees, employeesLoading, lookups, lookupsLoading, scopeType, lookupBoardId, filterLookupsByDomain, excludedDomainId, minimumDate }: {
   field: FieldConfig;
   value: unknown;
   onChange: (value: unknown) => void;
   employees: SearchableOption[];
-  lookups: Partial<Record<LookupKind, SearchableOption[]>>;
+  lookups: Partial<Record<LookupKind, LookupOption[]>>;
   employeesLoading: boolean;
   lookupsLoading: boolean;
   scopeType: string;
+  lookupBoardId?: string | null;
+  filterLookupsByDomain: boolean;
+  excludedDomainId?: string | null;
+  minimumDate?: string;
 }) {
   const scopeLookupKind = field.lookup === "scope" ? scopeLookupKinds[scopeType] : undefined;
+  const lookupOptions = field.lookup === "scope" ? scopeLookupKind ? lookups[scopeLookupKind] ?? [] : [] : lookups[field.lookup ?? "board"] ?? [];
+  const scopedLookupOptions = lookupOptions.filter((option) => {
+    if (field.lookup === "personnel_domain" && option.value === excludedDomainId) return false;
+    if (filterLookupsByDomain && (field.lookup === "department" || field.lookup === "institution")) {
+      return (option.boardId ?? null) === (lookupBoardId ?? null);
+    }
+    return true;
+  });
   const common = {
     id: `field-${field.name}`,
     name: field.name,
@@ -94,9 +113,9 @@ function EditField({ field, value, onChange, employees, employeesLoading, lookup
       {field.kind === "textarea" || field.kind === "json" ? <textarea {...common} value={typeof value === "string" ? value : JSON.stringify(value ?? [], null, 2)} rows={3} placeholder={field.placeholder} /> :
         field.kind === "select" ? <select {...common} value={String(value ?? "")}><option value="">Select…</option>{field.options?.map((option) => <option key={option} value={option}>{field.name === "role_code" ? roleDisplayName(option) : option}</option>)}</select> :
           field.kind === "employee" ? <SearchableSelect id={common.id} name={field.name} value={String(value ?? "")} options={employees} placeholder="Search employees by name or number…" emptyLabel={employeesLoading ? "Loading employees…" : "No employees are available"} loading={employeesLoading} required={field.required} onChange={onChange} /> :
-            field.kind === "lookup" && field.lookup ? <SearchableSelect id={common.id} name={field.name} value={String(value ?? "")} options={field.lookup === "scope" ? scopeLookupKind ? lookups[scopeLookupKind] ?? [] : [] : lookups[field.lookup] ?? []} placeholder={field.lookup === "scope" ? scopeLookupKind ? `Search ${scopeType.toLowerCase()} by name…` : "Choose a scope type first" : `Search ${field.label.toLowerCase()}…`} emptyLabel={field.lookup === "scope" && !scopeLookupKind ? "Choose a scope type first" : lookupsLoading ? "Loading choices…" : `No ${field.label.toLowerCase()} choices are available`} loading={lookupsLoading} disabled={field.lookup === "scope" && !scopeLookupKind} required={field.required} onChange={onChange} /> :
+            field.kind === "lookup" && field.lookup ? <SearchableSelect id={common.id} name={field.name} value={String(value ?? "")} options={scopedLookupOptions} placeholder={field.lookup === "scope" ? scopeLookupKind ? `Search ${scopeType.toLowerCase()} by name…` : "Choose a scope type first" : `Search ${field.label.toLowerCase()}…`} emptyLabel={field.lookup === "scope" && !scopeLookupKind ? "Choose a scope type first" : lookupsLoading ? "Loading choices…" : `No ${field.label.toLowerCase()} choices are available`} loading={lookupsLoading} disabled={field.lookup === "scope" && !scopeLookupKind} required={field.required} onChange={onChange} /> :
             field.kind === "checkbox" ? <span className="checkbox-control"><input {...common} type="checkbox" checked={Boolean(value)} /> Yes</span> :
-              <input {...common} type={field.kind ?? "text"} value={field.kind === "date" && value ? String(value).slice(0, 10) : String(value ?? "")} placeholder={field.placeholder} />}
+              <input {...common} type={field.kind ?? "text"} value={field.kind === "date" && value ? String(value).slice(0, 10) : String(value ?? "")} min={field.kind === "date" ? minimumDate : undefined} placeholder={field.placeholder} />}
     </label>
   );
 }
@@ -119,7 +138,7 @@ export default function ModulePage() {
   const [employees, setEmployees] = useState<SearchableOption[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const employeeDirectoryRequest = useRef<Promise<SearchableOption[]> | null>(null);
-  const [lookupChoices, setLookupChoices] = useState<Partial<Record<LookupKind, SearchableOption[]>>>({});
+  const [lookupChoices, setLookupChoices] = useState<Partial<Record<LookupKind, LookupOption[]>>>({});
   const [lookupsLoading, setLookupsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -254,6 +273,16 @@ export default function ModulePage() {
   const canExport = canExportModule(pageConfig.path, roles);
   const columns = pageConfig.columns ?? [];
   const fields = pageConfig.fields ?? [];
+  const transferTargetDomain = pageConfig.table === "employee_transfers"
+    ? lookupChoices.personnel_domain?.find((domain) => domain.value === values.new_domain_id)
+    : undefined;
+  const transferSourceAssignment = pageConfig.table === "employee_transfers"
+    ? lookupChoices.assignment?.find((assignment) => assignment.value === values.previous_assignment_id)
+    : undefined;
+  const lookupBoardId = transferTargetDomain?.boardId;
+  const filterLookupsByDomain = Boolean(transferTargetDomain);
+  const excludedDomainId = transferSourceAssignment?.personnelDomainId;
+  const minimumEffectiveDate = pageConfig.table === "employee_transfers" ? getTomorrowDateInputValue() : undefined;
 
   async function loadEmployeeDirectory(): Promise<SearchableOption[]> {
     if (!supabase || !hasAccess || !canEdit || !fields.some((field) => field.kind === "employee" || field.lookup === "assignment")) return [];
@@ -293,7 +322,7 @@ export default function ModulePage() {
     }
   }
 
-  async function fetchLookupChoices(kind: LookupKind, employeeChoices: SearchableOption[]): Promise<SearchableOption[]> {
+  async function fetchLookupChoices(kind: LookupKind, employeeChoices: SearchableOption[]): Promise<LookupOption[]> {
     if (!supabase) return [];
     const source = lookupSources[kind];
     const records: Record<string, unknown>[] = [];
@@ -341,7 +370,7 @@ export default function ModulePage() {
                   ? [record.full_name, record.email]
                   : [record.original_file_name, record.document_type];
       const label = parts.filter((part) => typeof part === "string" && part.length > 0).join(" · ");
-      return label ? [{ value: record.id, label }] : [];
+      return label ? [{ value: record.id, label, ...(kind === "department" || kind === "institution" || kind === "personnel_domain" ? { boardId: typeof record.board_id === "string" ? record.board_id : null } : {}), ...(kind === "assignment" ? { personnelDomainId: typeof record.personnel_domain_id === "string" ? record.personnel_domain_id : null } : {}) }] : [];
     });
   }
 
@@ -458,7 +487,13 @@ export default function ModulePage() {
       showToast(selected ? "Record updated successfully." : "Record created successfully.", "success");
       await loadRows();
     } catch (reason) {
-      setError(getErrorMessage(reason));
+      const errorCode = reason && typeof reason === "object" && "code" in reason ? reason.code : undefined;
+      const transferErrorMessage = errorCode === "22023"
+        ? "Transfers require an effective date after today, a different receiving domain, and complete assignment details."
+        : errorCode === "23514"
+          ? "A selected department or institution does not belong to the receiving personnel domain."
+          : undefined;
+      setError(pageConfig.table === "employee_transfers" ? transferErrorMessage ?? getErrorMessage(reason) : getErrorMessage(reason));
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -578,7 +613,7 @@ export default function ModulePage() {
         {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
           <section ref={editDialog} className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <div className="modal-heading"><h2 id="modal-title">{selected ? "Edit record" : "New record"}</h2><button type="button" className="text-button" onClick={() => setModalOpen(false)} disabled={saving}>Close</button></div>
-            <form onSubmit={(event) => { if (pageConfig.path === "/settings") { event.preventDefault(); setConfirmSystemConfigSave(true); } else void handleSave(event); }}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} employeesLoading={employeesLoading} lookups={lookupChoices} lookupsLoading={lookupsLoading} scopeType={String(values.scope_type ?? "")} onChange={(value) => setValues((current) => field.name === "scope_type" ? { ...current, scope_type: value, scope_id: "" } : { ...current, [field.name]: value })} />)}</div>
+            <form onSubmit={(event) => { if (pageConfig.path === "/settings") { event.preventDefault(); setConfirmSystemConfigSave(true); } else void handleSave(event); }}><div className="field-grid">{fields.map((field) => <EditField key={field.name} field={field} value={values[field.name]} employees={employees} employeesLoading={employeesLoading} lookups={lookupChoices} lookupsLoading={lookupsLoading} scopeType={String(values.scope_type ?? "")} lookupBoardId={lookupBoardId} filterLookupsByDomain={filterLookupsByDomain} excludedDomainId={excludedDomainId} minimumDate={field.name === "effective_date" ? minimumEffectiveDate : undefined} onChange={(value) => setValues((current) => field.name === "scope_type" ? { ...current, scope_type: value, scope_id: "" } : field.name === "previous_assignment_id" ? { ...current, previous_assignment_id: value, new_domain_id: "", department_id: "", institution_id: "" } : field.name === "new_domain_id" ? { ...current, new_domain_id: value, department_id: "", institution_id: "" } : { ...current, [field.name]: value })} />)}</div>
               <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button className="button button-primary" disabled={saving || employeesLoading || lookupsLoading || !online}>{saving ? "Saving…" : <>{selected ? "Save changes" : "Create record"}</>}</button></div>
             </form>
           </section>

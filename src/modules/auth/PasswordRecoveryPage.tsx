@@ -58,11 +58,15 @@ export default function PasswordRecoveryPage({ mode }: { mode: "request" | "rese
           setError("Invalid OTP length.");
           return;
         }
-        // Proceed with password update (OTP verification would be integrated with Supabase)
-        const { error: updateError } = await supabase.auth.updateUser({ password });
+        const { data, error: updateError } = await supabase.functions.invoke("change-own-password", {
+          body: { password },
+        });
         if (updateError) throw updateError;
-        setMessage("Your password has been updated.");
-        window.setTimeout(() => navigate("/dashboard", { replace: true }), 900);
+        const auditFailure = data?.auditLogged === false;
+        setMessage(auditFailure
+          ? "Your password changed, but the activity record could not be saved. Contact your administrator."
+          : "Your password has been updated.");
+        if (!auditFailure) window.setTimeout(() => navigate("/dashboard", { replace: true }), 900);
       }
     } catch (reason: any) {
       const detail =

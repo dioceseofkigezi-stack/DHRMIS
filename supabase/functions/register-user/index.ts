@@ -101,7 +101,7 @@ Deno.serve(async (request: Request) => {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     global: { headers: { Authorization: authorization } },
   });
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+  let adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
 
@@ -110,6 +110,10 @@ Deno.serve(async (request: Request) => {
   if (callerData.user.app_metadata?.must_change_password === true) {
     return respond(403, { message: "Change your temporary password before using account administration." });
   }
+  adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    global: { headers: { "x-audit-actor-id": callerData.user.id } },
+  });
   const { data: roleRows, error: roleError } = await adminClient
     .from("user_roles")
     .select("*")
@@ -129,6 +133,13 @@ Deno.serve(async (request: Request) => {
   if (!trackedSession || !(roleRows ?? []).some((row) => isCurrentActiveSuperAdmin(row as Record<string, unknown>))) {
     return respond(403, { message: "Only an active Super System Administrator session can create accounts." });
   }
+  adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    global: { headers: {
+      "x-audit-actor-id": callerData.user.id,
+      "x-audit-session-id": trackedSession.id,
+    } },
+  });
 
   let body: unknown;
   try {
@@ -193,19 +204,51 @@ Deno.serve(async (request: Request) => {
   }
 
   const actorName = callerData.user.user_metadata?.full_name || callerData.user.user_metadata?.name || callerData.user.email || null;
+  const accountAuditValues = {
+    email,
+    full_name: fullName,
+    role_code: roleCode,
+    must_change_password: true,
+    password: "[REDACTED: CREDENTIAL OR SECRET]",
+  };
   const { data: auditEntry, error: auditError } = assignment
     ? await adminClient.from("audit_log").update({
       user_id: callerData.user.id,
       user_name: actorName,
       action: "USER_ACCOUNT_CREATED",
-      purpose: `Created ${email} with role ${roleCode} and a required first-login password change.`,
-    }).eq("record_id", assignment.id).eq("module", "user_roles").is("user_id", null).select("id").maybeSingle()
+      module: "user_accounts",
+      record_id: newUser.id,
+      record_type: "auth.users",
+      before_values: {},
+      after_values: accountAuditValues,
+      purpose: "Super/System Administrator created a user account and assigned its initial role.",
+      context: "A one-time password was generated and shown to the administrator. Credential value not recorded.",
+    }).eq("record_id", assignment.id).eq("module", "user_roles").eq("user_id", callerData.user.id).select("id").maybeSingle()
     : { data: null, error: new Error("The role assignment audit record is unavailable.") };
+
+  let auditLogged = !auditError && Boolean(auditEntry);
+  if (!auditLogged) {
+    const { error: fallbackAuditError } = await adminClient.from("audit_log").insert({
+      user_id: callerData.user.id,
+      user_name: actorName,
+      action: "USER_ACCOUNT_CREATED",
+      module: "user_accounts",
+      record_id: newUser.id,
+      record_type: "auth.users",
+      result: "Success",
+      before_values: {},
+      after_values: accountAuditValues,
+      purpose: "Super/System Administrator created a user account and assigned its initial role.",
+      context: "A one-time password was generated and shown to the administrator. Credential value not recorded.",
+      session_id: trackedSession.id,
+    });
+    auditLogged = !fallbackAuditError;
+  }
 
   return respond(201, {
     userId: newUser.id,
     temporaryPassword,
     message: "Account created. The temporary password must be changed at first sign-in.",
-    auditLogged: !auditError && Boolean(auditEntry),
+    auditLogged,
   });
 });

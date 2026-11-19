@@ -19,6 +19,23 @@ export interface ReportMetric {
   category: string;
 }
 
+interface ReportBreakdownItem {
+  dimension: string;
+  label: string;
+  count: number;
+  share: number;
+}
+
+interface ReportDetailSection {
+  key: string;
+  title: string;
+  description: string;
+  total: number;
+  analyzed: number;
+  unavailable: boolean;
+  groups: ReportBreakdownItem[];
+}
+
 export interface Delta {
   count: number | null;
   pct: number | null;
@@ -39,14 +56,14 @@ interface MetricSource {
 export const CATEGORY_ORDER = ["Accounts", "Security", "History", "Technical"] as const;
 
 export const METRIC_SOURCES: MetricSource[] = [
-  { key: "accounts", label: "Managed accounts", description: "User-role records; a person assigned multiple roles is counted once per role", category: "Accounts", table: "user_roles", tsColumn: "createdat", allTimeWindowDays: 90 },
-  { key: "active", label: "Active accounts", description: "Role assignments currently active and not suspended", category: "Accounts", table: "user_roles", tsColumn: "createdat", filters: [["isactive", "eq", true], ["issuspended", "eq", false]], allTimeWindowDays: 90 },
-  { key: "suspended", label: "Suspended accounts", description: "Accounts suspended by platform administration", category: "Accounts", table: "user_roles", tsColumn: "createdat", filters: [["issuspended", "eq", true]], allTimeWindowDays: 90 },
-  { key: "sessions", label: "Active sessions", description: "Active tracked sessions that have not expired", category: "Security", table: "user_sessions", tsColumn: "createdat", filters: [["isactive", "eq", true]], allTimeWindowDays: 30 },
-  { key: "events", label: "Open security events", description: "Security alerts awaiting resolution", category: "Security", table: "security_event", tsColumn: "created_at", filters: [["resolved", "eq", false]], allTimeWindowDays: 90 },
+  { key: "accounts", label: "Role assignments created", description: "User-role records created in the selected period; a person assigned multiple roles is counted once per role", category: "Accounts", table: "user_roles", tsColumn: "createdat", allTimeWindowDays: 90 },
+  { key: "active", label: "Active role assignments", description: "Assignments created in the selected period that are currently active and not suspended", category: "Accounts", table: "user_roles", tsColumn: "createdat", filters: [["isactive", "eq", true], ["issuspended", "eq", false]], allTimeWindowDays: 90 },
+  { key: "suspended", label: "Suspended role assignments", description: "Assignments created in the selected period that are currently suspended", category: "Accounts", table: "user_roles", tsColumn: "createdat", filters: [["issuspended", "eq", true]], allTimeWindowDays: 90 },
+  { key: "sessions", label: "Active sessions started", description: "Sessions started in the selected period that are still active and have not expired", category: "Security", table: "user_sessions", tsColumn: "createdat", filters: [["isactive", "eq", true]], allTimeWindowDays: 30 },
+  { key: "events", label: "Unresolved security events", description: "Security events opened in the selected period that are still awaiting resolution", category: "Security", table: "security_event", tsColumn: "created_at", filters: [["resolved", "eq", false]], allTimeWindowDays: 90 },
   { key: "audit", label: "Audit records in period", description: "System activity recorded in the selected period", category: "History", table: "audit_log", tsColumn: "created_at", allTimeWindowDays: 90 },
   { key: "sensitive", label: "Sensitive reads in period", description: "Sensitive-read events recorded in the selected period", category: "History", table: "sensitive_read_log", tsColumn: "timestamp", allTimeWindowDays: 90 },
-  { key: "configuration", label: "Configuration entries", description: "System configuration values", category: "Technical", table: "system_config", tsColumn: "createdat", allTimeWindowDays: 90 },
+  { key: "configuration", label: "Configuration entries created", description: "Configuration values first added in the selected period", category: "Technical", table: "system_config", tsColumn: "createdat", allTimeWindowDays: 90 },
 ];
 
 export function parseLocalDate(value: string): Date | null {
@@ -191,20 +208,29 @@ async function fetchTrend(source: MetricSource, fromDate: string, toDate: string
   }
 }
 
-function downloadReport(metrics: ReportMetric[], fromDate: string, toDate: string, previous: { from: string; to: string } | null) {
+function downloadReport(metrics: ReportMetric[], details: ReportDetailSection[], fromDate: string, toDate: string, previous: { from: string; to: string } | null) {
   const generatedAt = new Date().toISOString();
   const csv = [
-    ["Report", "Category", "Count", "Previous", "Delta", "Δ%", "Description", "Period start", "Period end", "Previous start", "Previous end", "Generated at"].map(csvCell).join(","),
+    ["Record type", "Category", "Measure", "Detail", "Count", "Previous", "Delta", "Change %", "Share of analyzed records", "Description", "Period start", "Period end", "Previous start", "Previous end", "Generated at"].map(csvCell).join(","),
     ...metrics.map((row) => [
-      row.label, row.category,
+      "Metric", row.category, row.label, "",
       row.count ?? "Unavailable", row.previous ?? "Unavailable",
       row.delta === null ? "Unavailable" : row.delta,
-      row.deltaPct === null ? "Unavailable" : `${row.deltaPct >= 0 ? "+" : ""}${row.deltaPct}%`,
+      row.deltaPct === null ? "Unavailable" : `${row.deltaPct >= 0 ? "+" : ""}${row.deltaPct}%`, "",
       row.description,
       fromDate || "All time", toDate || "Current",
       previous ? previous.from : "—", previous ? previous.to : "—",
       generatedAt,
     ].map(csvCell).join(",")),
+    ...details.flatMap((section) => section.groups.map((item) => [
+      "Breakdown", section.title, item.dimension, item.label, item.count, "", "", "", `${item.share}%`,
+      `${section.description} ${section.analyzed.toLocaleString()} of ${section.total.toLocaleString()} matching records analyzed.`,
+      fromDate || "All available history", toDate || "Current", previous ? previous.from : "—", previous ? previous.to : "—", generatedAt,
+    ].map(csvCell).join(","))),
+    ...metrics.flatMap((metric) => metric.trend.map((point) => [
+      "Daily trend", metric.category, metric.label, point.date, point.count, "", "", "", "", "Daily count",
+      fromDate || "All available history", toDate || "Current", previous ? previous.from : "—", previous ? previous.to : "—", generatedAt,
+    ].map(csvCell).join(","))),
   ].join("\r\n");
   const file = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
   const objectUrl = URL.createObjectURL(file);
@@ -213,6 +239,90 @@ function downloadReport(metrics: ReportMetric[], fromDate: string, toDate: strin
   anchor.download = `dhrmis-administration-report-${new Date().toISOString().slice(0, 10)}.csv`;
   anchor.click();
   URL.revokeObjectURL(objectUrl);
+}
+
+const DETAIL_ROW_LIMIT = 5000;
+
+async function fetchDetailRows(table: string, columns: string, timestampColumn: string, fromDate: string, toDate: string) {
+  if (!supabase) return { rows: [] as Record<string, unknown>[], total: 0, error: new Error("The system data service is not configured.") };
+  let query: any = supabase.from(table).select(columns, { count: "exact" }).order(timestampColumn, { ascending: false }).limit(DETAIL_ROW_LIMIT);
+  if (fromDate) query = query.gte(timestampColumn, startOfDay(fromDate));
+  if (toDate) query = query.lt(timestampColumn, endOfDay(toDate));
+  try {
+    const { data, count, error } = await query;
+    return { rows: (data ?? []) as Record<string, unknown>[], total: count ?? 0, error };
+  } catch (error) {
+    return { rows: [] as Record<string, unknown>[], total: 0, error };
+  }
+}
+
+function displayDimension(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Not recorded";
+  const text = String(value).replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function groupBreakdown(rows: Record<string, unknown>[], dimension: string, getValue: (row: Record<string, unknown>) => unknown): ReportBreakdownItem[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const label = displayDimension(getValue(row));
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const top = sorted.slice(0, 12);
+  const otherCount = sorted.slice(12).reduce((sum, [, count]) => sum + count, 0);
+  if (otherCount > 0) top.push(["Other categories", otherCount]);
+  return top.map(([label, count]) => ({ dimension, label, count, share: rows.length ? Math.round((count / rows.length) * 100) : 0 }));
+}
+
+async function loadDetailedSections(fromDate: string, toDate: string): Promise<{ sections: ReportDetailSection[]; hadError: boolean }> {
+  const [accounts, sessions, events, audit, sensitive, configuration] = await Promise.all([
+    fetchDetailRows("user_roles", "role_code,isactive,issuspended,ismfaenabled,createdat", "createdat", fromDate, toDate),
+    fetchDetailRows("user_sessions", "isactive,expiresat,createdat,lastactivityat", "createdat", fromDate, toDate),
+    fetchDetailRows("security_event", "severity,event_type,resolved,acknowledged,created_at", "created_at", fromDate, toDate),
+    fetchDetailRows("audit_log", "module,action,result,created_at", "created_at", fromDate, toDate),
+    fetchDetailRows("sensitive_read_log", "data_category,record_type,timestamp", "timestamp", fromDate, toDate),
+    fetchDetailRows("system_config", "config_section,is_valid,is_sensitive,createdat", "createdat", fromDate, toDate),
+  ]);
+  const now = Date.now();
+  const sections: ReportDetailSection[] = [
+    { key: "accounts", title: "Account and role assignments", description: "Role assignments created in the selected period, grouped by assigned role, current status, and MFA setting.", total: accounts.total, analyzed: accounts.rows.length, unavailable: Boolean(accounts.error), groups: [
+      ...groupBreakdown(accounts.rows, "Role", (row) => row.role_code),
+      ...groupBreakdown(accounts.rows, "Current assignment status", (row) => row.issuspended === true ? "Suspended" : row.isactive === true ? "Active" : "Inactive"),
+      ...groupBreakdown(accounts.rows, "MFA", (row) => row.ismfaenabled === true ? "Enabled" : "Not enabled"),
+    ] },
+    { key: "sessions", title: "Session activity", description: "Tracked sessions started in the selected period, grouped by current session state and activity status.", total: sessions.total, analyzed: sessions.rows.length, unavailable: Boolean(sessions.error), groups: [
+      ...groupBreakdown(sessions.rows, "Current session state", (row) => row.isactive === true && typeof row.expiresat === "string" && new Date(row.expiresat).getTime() > now ? "Active and unexpired" : row.isactive === true ? "Active but expired" : "Ended or revoked"),
+    ] },
+    { key: "security", title: "Security event review", description: "Security events opened in the selected period, grouped by severity, event type, resolution, and acknowledgement.", total: events.total, analyzed: events.rows.length, unavailable: Boolean(events.error), groups: [
+      ...groupBreakdown(events.rows, "Severity", (row) => row.severity),
+      ...groupBreakdown(events.rows, "Event type", (row) => row.event_type),
+      ...groupBreakdown(events.rows, "Resolution", (row) => row.resolved === true ? "Resolved" : "Open"),
+      ...groupBreakdown(events.rows, "Acknowledgement", (row) => row.acknowledged === true ? "Acknowledged" : "Awaiting acknowledgement"),
+    ] },
+    { key: "audit", title: "Audit activity", description: "Audit records created in the selected period, grouped by outcome, module, and action.", total: audit.total, analyzed: audit.rows.length, unavailable: Boolean(audit.error), groups: [
+      ...groupBreakdown(audit.rows, "Outcome", (row) => row.result),
+      ...groupBreakdown(audit.rows, "Module", (row) => row.module),
+      ...groupBreakdown(audit.rows, "Action", (row) => row.action),
+    ] },
+    { key: "sensitive", title: "Sensitive data access", description: "Sensitive-read records created in the selected period, grouped by protected data category and record type.", total: sensitive.total, analyzed: sensitive.rows.length, unavailable: Boolean(sensitive.error), groups: [
+      ...groupBreakdown(sensitive.rows, "Data category", (row) => row.data_category),
+      ...groupBreakdown(sensitive.rows, "Record type", (row) => row.record_type),
+    ] },
+    { key: "configuration", title: "System configuration", description: "Configuration entries created in the selected period, grouped by section, validation state, and sensitivity.", total: configuration.total, analyzed: configuration.rows.length, unavailable: Boolean(configuration.error), groups: [
+      ...groupBreakdown(configuration.rows, "Section", (row) => row.config_section),
+      ...groupBreakdown(configuration.rows, "Validation", (row) => row.is_valid === true ? "Valid" : "Needs review"),
+      ...groupBreakdown(configuration.rows, "Sensitivity", (row) => row.is_sensitive === true ? "Sensitive" : "Standard"),
+    ] },
+  ];
+  return { sections, hadError: [accounts, sessions, events, audit, sensitive, configuration].some((result) => Boolean(result.error)) };
+}
+
+function summarizeTrend(trend: ReportMetric["trend"]) {
+  if (!trend.length) return null;
+  const total = trend.reduce((sum, point) => sum + point.count, 0);
+  const activeDays = trend.filter((point) => point.count > 0).length;
+  return { total, activeDays, average: total / trend.length };
 }
 
 function Sparkline({ values }: { values: number[] }) {
@@ -237,6 +347,7 @@ export default function AdminReportsPage() {
   const [toDate, setToDate] = useState(searchParams.get("to") ?? "");
   const [search, setSearch] = useState("");
   const [metrics, setMetrics] = useState<ReportMetric[]>([]);
+  const [details, setDetails] = useState<ReportDetailSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
@@ -252,15 +363,17 @@ export default function AdminReportsPage() {
   const previous = useMemo(() => (fromDate && toDate ? previousPeriodBounds(fromDate, toDate) : null), [fromDate, toDate]);
 
   const loadReport = useCallback(async () => {
-    if (!canView) { setMetrics([]); setLoading(false); return; }
-    if (!supabase) { setMetrics([]); setError("The system data service is not configured."); setLoading(false); return; }
+    if (!canView) { setMetrics([]); setDetails([]); setLoading(false); return; }
+    if (!supabase) { setMetrics([]); setDetails([]); setError("The system data service is not configured."); setLoading(false); return; }
     if (fromDate && toDate && fromDate > toDate) {
       setError("The report start date must be on or before the end date.");
       setMetrics([]);
+      setDetails([]);
       setLoading(false);
       return;
     }
     setLoading(true);
+    setDetails([]);
     setError("");
     const start = fromDate ? startOfDay(fromDate) : undefined;
     const end = toDate ? endOfDay(toDate) : undefined;
@@ -269,7 +382,7 @@ export default function AdminReportsPage() {
     const nowISO = new Date().toISOString();
 
     try {
-      const loaded = await Promise.all(METRIC_SOURCES.map(async (source) => {
+      const [loaded, detailed] = await Promise.all([Promise.all(METRIC_SOURCES.map(async (source) => {
         const [current, previousCount, trend] = await Promise.all([
           fetchCount(source, start, end, nowISO),
           previous ? fetchCount(source, pStart, pEnd, nowISO) : { count: null, error: null },
@@ -289,7 +402,8 @@ export default function AdminReportsPage() {
           trend: trend.trend,
           error: current.error || previousCount.error || trend.error,
         };
-      }));
+      })), loadDetailedSections(fromDate, toDate)]);
+      setDetails(detailed.sections);
       setMetrics(loaded.map((result) => ({
         key: result.key,
         label: result.label,
@@ -303,8 +417,8 @@ export default function AdminReportsPage() {
         category: result.category,
       })));
       setLastRefreshed(new Date());
-      if (loaded.some((result) => result.error)) {
-        setError("Some report data could not be loaded. Missing totals or trends may be incomplete; review database access and refresh.");
+      if (loaded.some((result) => result.error) || detailed.hadError) {
+        setError("Some report data could not be loaded. Totals, breakdowns, or trends may be incomplete; review database access and refresh.");
       }
     } catch (err) {
       setError(adminErrorMessage(err, "The administrative report could not be built. Check your connection and try again."));
@@ -328,13 +442,17 @@ export default function AdminReportsPage() {
     {error && <AdminNotice>{error}</AdminNotice>}
     <section className="panel admin-report-overview" aria-label="Report details">
       <div className="admin-report-overview-copy">
-        <span className="eyebrow">REPORT COVERAGE</span>
-        <h2>Administrative activity summary</h2>
+        <span className="eyebrow">REPORT SCOPE</span>
+        <h2>Administrative activity and system status</h2>
+        <p className="muted">Includes account assignments, sessions, security events, audit history, sensitive-data access, and configuration records. Totals follow the selected dates; daily trends use the selected window or the latest 90 days (30 days for sessions).</p>
       </div>
       <dl className="admin-report-period-details">
-        <div><dt>Report period</dt><dd>{fromDate && toDate ? `${formatReportDate(fromDate)} – ${formatReportDate(toDate)}` : fromDate ? `From ${formatReportDate(fromDate)}` : toDate ? `Through ${formatReportDate(toDate)}` : "All available history"}</dd></div>
-        <div><dt>Comparison</dt><dd>{previous ? `${formatReportDate(previous.from)} – ${formatReportDate(previous.to)}` : "Select both dates to compare with an equal-length prior period"}</dd></div>
-        <div><dt>Daily trend</dt><dd>{fromDate || toDate ? "Selected date window" : "Most recent 90 days; sessions use 30 days"}</dd></div>
+        <div><dt>Report period</dt><dd>{fromDate && toDate ? `${formatReportDate(fromDate)} – ${formatReportDate(toDate)}` : fromDate ? `From ${formatReportDate(fromDate)} onward` : toDate ? `All records through ${formatReportDate(toDate)}` : "All available history"}</dd></div>
+        <div><dt>Comparison</dt><dd>{previous ? `${formatReportDate(previous.from)} – ${formatReportDate(previous.to)} (${daysInclusive(parseLocalDate(previous.from)!, parseLocalDate(previous.to)!)} days)` : "Choose both dates to compare against the previous equal-length period"}</dd></div>
+        <div><dt>Detailed breakdowns</dt><dd>Up to {DETAIL_ROW_LIMIT.toLocaleString()} recent matching records per source, with exact matching totals</dd></div>
+        <div><dt>Trend window</dt><dd>{fromDate || toDate ? "Selected date window" : "Latest 90 days; sessions use 30 days"}</dd></div>
+        <div><dt>Indicators available</dt><dd>{loading ? "Loading report totals" : `${metrics.filter((metric) => metric.count !== null).length} of ${metrics.length} available`}</dd></div>
+        <div><dt>Report refreshed</dt><dd>{formatAdminDate(lastRefreshed ? lastRefreshed.toISOString() : null)}</dd></div>
       </dl>
     </section>
     <section className="panel admin-report-controls">
@@ -343,7 +461,7 @@ export default function AdminReportsPage() {
         <label className="admin-filter-label">To<input type="date" aria-label="Report end date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></label>
         {previous && <span className="admin-period-comparison">Compared with {previous.from} to {previous.to}</span>}
         <label className="search-box"><input aria-label="Search report metrics" placeholder="Search report totals" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-        <button className="button button-primary" type="button" onClick={() => downloadReport(metrics, fromDate, toDate, previous)} disabled={loading || metrics.length === 0}>Download CSV</button>
+        <button className="button button-primary" type="button" onClick={() => downloadReport(metrics, details, fromDate, toDate, previous)} disabled={loading || metrics.length === 0}>Download detailed CSV</button>
       </div>
       <div className="admin-report-meta">
         <span>Last refreshed {formatAdminDate(lastRefreshed ? lastRefreshed.toISOString() : null)}</span>
@@ -375,6 +493,7 @@ export default function AdminReportsPage() {
                   <div className="admin-report-card-head">
                     <div>
                       <h3>{metric.label}</h3>
+                      <p className="admin-report-description">{metric.description}</p>
                     </div>
                     <div className="admin-report-card-value">
                       <strong>{metric.count === null ? "Unavailable" : metric.count.toLocaleString()}</strong>
@@ -389,12 +508,13 @@ export default function AdminReportsPage() {
                   </div>
                   {(() => {
                     const peak = metric.trend.reduce<{ date: string; count: number } | null>((highest, point) => !highest || point.count > highest.count ? point : highest, null);
+                    const summary = summarizeTrend(metric.trend);
                     return <div className="admin-report-trend">
                       <div className="admin-report-sparkline"><Sparkline values={metric.trend.map((point) => point.count)} /></div>
                       <div className="admin-report-trend-copy">
                         {peak ? <>
-                          <span>Daily trend · {metric.trend.length} days</span>
-                          <span>{peak.count === 0 ? "No recorded activity in this window" : `Peak: ${peak.count.toLocaleString()} on ${formatReportDate(peak.date)}`}</span>
+                          <span>{summary?.total.toLocaleString()} records · {summary?.activeDays} active of {metric.trend.length} days · {summary?.average.toFixed(1)} daily average</span>
+                          <span>{peak.count === 0 ? "No recorded activity in this window" : `Daily peak: ${peak.count.toLocaleString()} on ${formatReportDate(peak.date)}`}</span>
                         </> : <span>Trend unavailable</span>}
                       </div>
                     </div>;
@@ -404,5 +524,22 @@ export default function AdminReportsPage() {
             </div>
           ))}
         </section>}
+    {!loading && details.length > 0 && <section className="admin-report-details" aria-label="Detailed administrative breakdowns">
+      <div className="admin-report-details-heading">
+        <div><span className="eyebrow">DETAILED BREAKDOWNS</span><h2>Operational and governance detail</h2></div>
+        <p>Grouped counts provide context for the headline totals. Personal identifiers, configuration values, and record contents are not included.</p>
+      </div>
+      <div className="admin-report-detail-grid">
+        {details.map((section) => (
+          <article className="panel admin-report-detail-card" key={section.key}>
+            <header><div><h3>{section.title}</h3><p>{section.description}</p></div><AdminStatus tone={section.unavailable || section.total > section.analyzed ? "warning" : "neutral"}>{section.unavailable ? "Unavailable" : `${section.analyzed.toLocaleString()} of ${section.total.toLocaleString()} analyzed`}</AdminStatus></header>
+            {section.total > section.analyzed && !section.unavailable && <p className="admin-report-sample-note">Breakdown uses the latest {section.analyzed.toLocaleString()} of {section.total.toLocaleString()} matching records. Headline totals are exact.</p>}
+            {section.unavailable ? <div className="admin-inline-empty">Breakdown unavailable. Review the report notice above and refresh.</div> : section.groups.length === 0 ? <div className="admin-inline-empty">No matching records in this period.</div> : <div className="table-scroll"><table className="admin-report-breakdown-table"><thead><tr><th>Measure</th><th>Category / value</th><th>Count</th><th>Share of analyzed</th></tr></thead><tbody>
+              {section.groups.map((item, index) => <tr key={`${item.dimension}-${item.label}-${index}`}><td>{item.dimension}</td><td>{item.label}</td><td>{item.count.toLocaleString()}</td><td>{item.share}%</td></tr>)}
+            </tbody></table></div>}
+          </article>
+        ))}
+      </div>
+    </section>}
   </div>;
 }

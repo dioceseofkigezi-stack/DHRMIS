@@ -131,16 +131,14 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
     setProfileError("");
     setProfileMessage("");
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          full_name: fullName,
-          name: fullName,
-          phone: phone || null,
-          telephone: null,
-        },
+      const { data, error } = await supabase.functions.invoke("update-own-profile", {
+        body: { fullName, phone },
       });
       if (error) throw error;
-      setProfileMessage("Your account details have been saved.");
+      await supabase.auth.refreshSession();
+      setProfileMessage(data?.auditLogged === false
+        ? "Your account details were saved, but the activity record could not be saved. Contact your administrator."
+        : "Your account details have been saved.");
     } catch (reason) {
       setProfileError(await errorMessage(reason, "Your account details could not be saved."));
     } finally {
@@ -222,12 +220,16 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
         password: currentPassword,
       });
       if (signInError) throw new Error("Your current password is incorrect.");
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { data, error } = await supabase.functions.invoke("change-own-password", {
+        body: { password: newPassword },
+      });
       if (error) throw error;
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setPasswordMessage("Your password has been changed.");
+      setPasswordMessage(data?.auditLogged === false
+        ? "Your password changed, but the activity record could not be saved. Contact your administrator."
+        : "Your password has been changed.");
     } catch (reason) {
       setPasswordError(await errorMessage(reason, "Your password could not be changed."));
     } finally {
@@ -269,17 +271,24 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
         cacheControl: "3600",
       });
       if (uploadError) throw uploadError;
-      const { error: metadataError } = await supabase.auth.updateUser({ data: { avatar_path: path } });
+      const { data: profileData, error: metadataError } = await supabase.functions.invoke("update-own-profile", {
+        body: { avatarPath: path },
+      });
       if (metadataError) throw metadataError;
+      await supabase.auth.refreshSession();
       const { data, error: urlError } = await supabase.storage.from("profile-photos").createSignedUrl(path, 60 * 60);
       if (!urlError) setUploadedPhotoUrl(data.signedUrl);
       if (previousPath && previousPath !== path) {
         const { error: cleanupError } = await supabase.storage.from("profile-photos").remove([previousPath]);
         setPhotoMessage(cleanupError
           ? "Your new profile picture is saved. The previous image could not be removed."
-          : "Your profile picture has been updated.");
+          : profileData?.auditLogged === false
+            ? "Your profile picture has been updated, but the activity record could not be saved. Contact your administrator."
+            : "Your profile picture has been updated.");
       } else {
-        setPhotoMessage("Your profile picture has been updated.");
+        setPhotoMessage(profileData?.auditLogged === false
+          ? "Your profile picture has been updated, but the activity record could not be saved. Contact your administrator."
+          : "Your profile picture has been updated.");
       }
       setSelectedPhoto(null);
       setPhotoPreviewUrl("");
@@ -296,11 +305,15 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
     setPhotoError("");
     setPhotoMessage("");
     try {
-      const { error: metadataError } = await supabase.auth.updateUser({ data: { avatar_path: null } });
+      const { data: profileData, error: metadataError } = await supabase.functions.invoke("update-own-profile", {
+        body: { avatarPath: null },
+      });
       if (metadataError) throw metadataError;
+      await supabase.auth.refreshSession();
       setUploadedPhotoUrl("");
       const { error } = await supabase.storage.from("profile-photos").remove([metadataAvatarPath]);
-      if (error) setPhotoMessage("Your profile picture was removed. Its stored image could not be deleted.");
+      if (error) setPhotoMessage("Your profile picture was removed from your account. Its stored image could not be deleted.");
+      else if (profileData?.auditLogged === false) setPhotoMessage("Your profile picture was removed, but the activity record could not be saved. Contact your administrator.");
       else setPhotoMessage("Your profile picture has been removed.");
     } catch (reason) {
       setPhotoError(await errorMessage(reason, "Your profile picture could not be removed."));

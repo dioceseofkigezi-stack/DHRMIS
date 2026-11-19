@@ -12,6 +12,7 @@ interface AuditRow {
   user_name: string | null;
   user_id: string | null;
   record_id?: string | null;
+  record_key?: unknown;
   employee_id?: string | null;
   session_id?: string | null;
   scope_ids?: unknown;
@@ -60,15 +61,25 @@ function fieldsFromAuditRow(row: AuditRow, before: Record<string, unknown>, afte
   return [...new Set(recordedFields.length ? recordedFields : [...Object.keys(before), ...Object.keys(after)])].sort();
 }
 
-function isSensitiveField(field: string) {
+function isCredentialField(field: string) {
   const normalized = field.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return ["nin", "ninnumber"].includes(normalized) || /(password|passwd|secret|token|credential|apikey|accesskey|privatekey|nationalid|bank|accountnumber|accountno|routingnumber|iban|swift|sortcode|dateofbirth|medical|diagnos|health|safeguard|disciplin|children|child|spouse|nextofkin|phone|mobile|telephone|email|address|filepath|storagepath|objectkey)/.test(normalized);
+  return /(password|passwd|passphrase|secret|token|credential|apikey|accesskey|privatekey|servicekey|servicerole|clientsecret|authorization|authheader|bearer|jwt|cookie|sessionid|authsessionid|encryptionkey|signingkey)/.test(normalized);
+}
+
+function redactCredentialValues(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactCredentialValues);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, nestedValue]) => [
+    key,
+    isCredentialField(key) ? "[REDACTED: CREDENTIAL OR SECRET]" : redactCredentialValues(nestedValue),
+  ]));
 }
 
 function formatAuditValue(value: unknown) {
   if (value === undefined) return "Not recorded";
   if (value === null || value === "") return "Empty";
-  if (value === "[REDACTED]") return "Redacted for privacy";
+  if (value === "[REDACTED: CREDENTIAL OR SECRET]") return "Not recorded (credential or secret)";
+  if (value === "[REDACTED]") return "Redacted in original audit record";
   if (typeof value === "string") return value;
   if (typeof value === "object") return JSON.stringify(value, null, 2) || "Empty";
   return String(value);
@@ -90,6 +101,11 @@ function auditActionLabel(action: string | undefined) {
     case "UPDATE": return "Updated";
     case "DELETE_REQUEST": return "Deleted";
     case "USER_ACCOUNT_UPDATED": return "Updated user account";
+    case "USER_ACCOUNT_CREATED": return "Created user account";
+    case "USER_ACCOUNT_DELETED": return "Deleted user account";
+    case "USER_PASSWORD_RESET": return "Reset user password";
+    case "USER_PASSWORD_CHANGED": return "Changed password";
+    case "USER_PROFILE_UPDATED": return "Updated user profile";
     default: return action ? formatAuditField(action) : "Activity";
   }
 }
@@ -101,11 +117,11 @@ function sensitiveActionLabel(purpose: string | null | undefined) {
 }
 
 function displayValue(field: string, value: unknown, side: "before" | "after", row: AuditRow) {
-  if (value === undefined && side === "before" && row.action === "CREATED") return "Not present before creation";
-  if (value === undefined && side === "after" && row.action === "DELETE_REQUEST") return "Record deleted";
+  if (value === undefined && side === "before" && (row.action === "CREATED" || row.action === "USER_ACCOUNT_CREATED")) return "Not present before creation";
+  if (value === undefined && side === "after" && (row.action === "DELETE_REQUEST" || row.action === "USER_ACCOUNT_DELETED")) return "Record deleted";
   if (value === undefined) return "Not recorded";
-  if (isSensitiveField(field)) return "Redacted for privacy";
-  return formatAuditValue(value);
+  if (isCredentialField(field)) return "Not recorded (credential or secret)";
+  return formatAuditValue(redactCredentialValues(value));
 }
 
 function AuditEventDetails({ row, source }: { row: AuditRow; source: LogSource }) {
@@ -121,6 +137,7 @@ function AuditEventDetails({ row, source }: { row: AuditRow; source: LogSource }
     ["User ID", row.user_id],
     ["Record type", row.record_type],
     ["Record ID", row.record_id],
+    ["Record key", row.record_key],
     ["Related employee ID", row.employee_id],
     ["Session ID", row.session_id],
     ["IP address", row.ip_address],
@@ -186,7 +203,7 @@ export default function AdminAuditPage() {
     setError("");
     const safeSearch = debouncedSearch.replace(/[^a-zA-Z0-9@._ -]/g, "");
     let query = source === "audit"
-      ? supabase.from("audit_log").select("id,created_at,user_name,user_id,action,module,record_id,employee_id,record_type,result,purpose,context,before_values,after_values,session_id,scope_ids,ip_address,device_info,user_agent", { count: "exact" }).order("created_at", { ascending: false })
+      ? supabase.from("audit_log").select("id,created_at,user_name,user_id,action,module,record_id,record_key,employee_id,record_type,result,purpose,context,before_values,after_values,session_id,scope_ids,ip_address,device_info,user_agent", { count: "exact" }).order("created_at", { ascending: false })
       : supabase.from("sensitive_read_log").select("id,timestamp,user_name,user_id,record_id,employee_id,record_type,data_category,purpose,accessed_fields,scope_ids,session_id,ip_address,device_info", { count: "exact" }).order("timestamp", { ascending: false });
     const dateColumn = source === "audit" ? "created_at" : "timestamp";
     if (fromDate) query = query.gte(dateColumn, new Date(`${fromDate}T00:00:00`).toISOString());
@@ -236,7 +253,7 @@ export default function AdminAuditPage() {
                 <td><strong>{row.user_name || "Unknown user"}</strong><small>{row.user_id || "No user ID"}</small></td>
                 <td>{auditActionLabel(row.action)}</td>
                 <td>{row.module ? formatAuditField(row.module) : "System"}</td>
-                <td><strong>{row.record_type ? formatAuditField(row.record_type) : "—"}</strong><small>{row.record_id || "No record ID"}</small></td>
+                <td><strong>{row.record_type ? formatAuditField(row.record_type) : "—"}</strong><small>{row.record_id || (row.record_key ? JSON.stringify(row.record_key) : "No record ID")}</small></td>
                 <td><AdminStatus tone={row.result === "Success" ? "success" : row.result === "Failure" ? "danger" : "warning"}>{row.result || "Unknown"}</AdminStatus></td>
                 <td>{row.purpose || row.context || "—"}</td>
               </tr> : <tr>

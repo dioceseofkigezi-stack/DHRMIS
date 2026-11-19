@@ -44,7 +44,7 @@ export default function FirstLoginPasswordPage() {
     }
     setSubmitting(true);
     try {
-      const { error: changeError } = await supabase.functions.invoke("complete-first-login-password", {
+      const { data, error: changeError } = await supabase.functions.invoke("complete-first-login-password", {
         body: { currentPassword, newPassword: password },
       });
       if (changeError) throw changeError;
@@ -52,6 +52,9 @@ export default function FirstLoginPasswordPage() {
       setPassword("");
       setConfirmPassword("");
       setChanged(true);
+      if (data?.auditLogged === false) {
+        setError("Your password changed, but the activity record could not be saved. Contact your administrator.");
+      }
     } catch (reason) {
       setError(await functionErrorMessage(reason));
     } finally {
