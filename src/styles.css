@@ -879,6 +879,7 @@ tbody tr:hover { background: #fbfcfb; }
 .profile-photo-choose input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .profile-photo-remove { min-height: 36px; }
 .profile-settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 16px; margin-top: 16px; }
+.profile-settings-personal { display: grid; align-content: start; gap: 16px; }
 .profile-settings-security { display: grid; gap: 16px; }
 .profile-settings-card { display: grid; align-content: start; gap: 14px; padding: 21px; }
 .profile-settings-card .notice { margin: 0; }

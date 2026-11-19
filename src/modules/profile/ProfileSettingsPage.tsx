@@ -6,7 +6,6 @@ import { useAuth } from "@/modules/core/auth/context";
 
 interface ProfileDetails {
   fullName: string;
-  username: string;
   phone: string;
 }
 
@@ -22,6 +21,7 @@ async function errorMessage(error: unknown, fallback: string) {
       // Use the provider's message below when the response has no JSON body.
     }
   }
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
@@ -35,12 +35,17 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
   const user = session?.user;
   const [details, setDetails] = useState<ProfileDetails>(() => ({
     fullName: userText(user?.user_metadata?.full_name || user?.user_metadata?.name),
-    username: "",
     phone: userText(user?.user_metadata?.phone || user?.user_metadata?.telephone),
   }));
   const [email, setEmail] = useState(user?.email ?? "");
-  const [profileLoading, setProfileLoading] = useState(true);
   const [profileBusy, setProfileBusy] = useState(false);
+  const [usernameLoading, setUsernameLoading] = useState(true);
+  const [usernameBusy, setUsernameBusy] = useState(false);
+  const [username, setUsername] = useState("");
+  const [savedUsername, setSavedUsername] = useState("");
+  const [usernameAvailable, setUsernameAvailable] = useState(false);
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameMessage, setUsernameMessage] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -62,37 +67,40 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
 
   useEffect(() => {
     if (!supabase || !user) {
-      setProfileLoading(false);
+      setUsernameLoading(false);
       return;
     }
     let active = true;
-    setProfileLoading(true);
     setDetails({
       fullName: userText(user.user_metadata?.full_name || user.user_metadata?.name),
-      username: "",
       phone: userText(user.user_metadata?.phone || user.user_metadata?.telephone),
     });
     setEmail(user.email ?? "");
+    setUsernameLoading(true);
+    setUsernameError("");
 
-    async function loadProfile() {
-      const { data, error } = await supabase!.functions.invoke("self-service-profile", { body: { action: "get" } });
+    async function loadUsername() {
+      const { data, error } = await supabase!.rpc("get_my_username");
       if (!active) return;
       if (error) {
-        setProfileError(await errorMessage(error, "Your account details could not be loaded."));
-      } else if (data && typeof data === "object") {
-        setDetails({
-          fullName: userText(data.fullName) || userText(user.user_metadata?.full_name || user.user_metadata?.name),
-          username: userText(data.username),
-          phone: userText(data.phone) || userText(user.user_metadata?.phone || user.user_metadata?.telephone),
-        });
+        setUsernameAvailable(false);
+        setUsernameError(error.code === "PGRST202" || error.code === "42883"
+          ? "Username settings need the latest database migration. Your name and phone can still be updated."
+          : await errorMessage(error, "Your username could not be loaded."));
+      } else {
+        const value = userText(data);
+        setUsername(value);
+        setSavedUsername(value);
+        setUsernameAvailable(true);
       }
-      setProfileLoading(false);
+      setUsernameLoading(false);
     }
 
-    void loadProfile().catch(async (reason: unknown) => {
+    void loadUsername().catch(async (reason: unknown) => {
       if (!active) return;
-      setProfileError(await errorMessage(reason, "Your account details could not be loaded."));
-      setProfileLoading(false);
+      setUsernameAvailable(false);
+      setUsernameError(await errorMessage(reason, "Your username could not be loaded."));
+      setUsernameLoading(false);
     });
     return () => { active = false; };
   }, [user?.id]);
@@ -108,20 +116,57 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
   async function saveDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase || !online) return;
+    const fullName = details.fullName.trim();
+    const phone = details.phone.trim();
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (!fullName || fullName.length > 120) {
+      setProfileError("Enter a name of 1 to 120 characters.");
+      return;
+    }
+    if (phone && (!/^[+0-9().\s-]+$/.test(phone) || phoneDigits.length < 7 || phoneDigits.length > 15)) {
+      setProfileError("Enter a valid phone number with 7 to 15 digits.");
+      return;
+    }
     setProfileBusy(true);
     setProfileError("");
     setProfileMessage("");
     try {
-      const { error } = await supabase.functions.invoke("self-service-profile", {
-        body: { action: "update", ...details },
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName,
+          name: fullName,
+          phone: phone || null,
+          telephone: null,
+        },
       });
-      if (error) throw new Error(await errorMessage(error, "Your account details could not be saved."));
-      await supabase.auth.refreshSession();
+      if (error) throw error;
       setProfileMessage("Your account details have been saved.");
     } catch (reason) {
       setProfileError(await errorMessage(reason, "Your account details could not be saved."));
     } finally {
       setProfileBusy(false);
+    }
+  }
+
+  async function saveUsername(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !online || !usernameAvailable) return;
+    setUsernameBusy(true);
+    setUsernameError("");
+    setUsernameMessage("");
+    try {
+      const { data, error } = await supabase.rpc("set_my_username", {
+        p_username: username.trim() || null,
+      });
+      if (error) throw error;
+      const updatedUsername = userText(data);
+      setUsername(updatedUsername);
+      setSavedUsername(updatedUsername);
+      setUsernameMessage("Your username has been saved.");
+    } catch (reason) {
+      setUsernameError(await errorMessage(reason, "Your username could not be saved."));
+    } finally {
+      setUsernameBusy(false);
     }
   }
 
@@ -138,11 +183,18 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
     setEmailError("");
     setEmailMessage("");
     try {
-      const { data, error } = await supabase.auth.updateUser({ email: nextEmail });
-      if (error) throw error;
-      setEmailMessage(data.user?.email?.toLowerCase() === nextEmail
-        ? "Your email address has been updated."
-        : "Check your inbox for a confirmation link to finish changing your email address.");
+      const { data, error } = await supabase.functions.invoke("self-service-email", {
+        body: { email: nextEmail },
+      });
+      if (error) throw new Error(await errorMessage(error, "Your email address could not be changed."));
+      if (!data || typeof data.email !== "string") throw new Error("Your email address could not be changed.");
+      setEmail(data.email);
+      setEmailMessage("Your email address has been updated.");
+      try {
+        await supabase.auth.refreshSession();
+      } catch {
+        // The email change has already succeeded; the next sign-in will load the updated address.
+      }
     } catch (reason) {
       setEmailError(await errorMessage(reason, "Your email address could not be changed."));
     } finally {
@@ -289,33 +341,41 @@ export default function ProfileSettingsPage({ avatarUrl }: { avatarUrl: string }
       </section>
 
       <div className="profile-settings-grid">
-        <form className="panel profile-settings-card" onSubmit={(event) => void saveDetails(event)}>
-          <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="people" size={17} /></span><div><h2>Personal details</h2><p className="muted">The details shown with your account.</p></div></div>
-          {profileError && <div className="notice notice-error" role="alert">{profileError}</div>}
-          {profileMessage && <div className="notice notice-success" role="status">{profileMessage}</div>}
-          <label className="field">Full name
-            <input type="text" autoComplete="name" maxLength={120} required value={details.fullName} onChange={(event) => setDetails((current) => ({ ...current, fullName: event.target.value }))} />
-          </label>
-          <label className="field">Username
-            <input type="text" autoComplete="username" maxLength={40} pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,39}" value={details.username} onChange={(event) => setDetails((current) => ({ ...current, username: event.target.value }))} />
-            <small className="field-help">Optional and unique; sign in with your email. Use 3–40 letters, numbers, dots, underscores or hyphens.</small>
-          </label>
-          <label className="field">Phone number
-            <input type="tel" autoComplete="tel" maxLength={30} value={details.phone} onChange={(event) => setDetails((current) => ({ ...current, phone: event.target.value }))} />
-          </label>
-          <div className="profile-settings-actions"><button className="button button-primary" type="submit" disabled={profileLoading || profileBusy || !online}>{profileBusy ? "Saving…" : "Save details"}</button></div>
-          {profileLoading && <p className="field-help" role="status">Loading your saved account details…</p>}
-        </form>
+        <div className="profile-settings-personal">
+          <form className="panel profile-settings-card" onSubmit={(event) => void saveDetails(event)}>
+            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="people" size={17} /></span><div><h2>Personal details</h2><p className="muted">The details shown with your account.</p></div></div>
+            {profileError && <div className="notice notice-error" role="alert">{profileError}</div>}
+            {profileMessage && <div className="notice notice-success" role="status">{profileMessage}</div>}
+            <label className="field">Full name
+              <input type="text" autoComplete="name" maxLength={120} required value={details.fullName} onChange={(event) => setDetails((current) => ({ ...current, fullName: event.target.value }))} />
+            </label>
+            <label className="field">Phone number
+              <input type="tel" autoComplete="tel" maxLength={30} value={details.phone} onChange={(event) => setDetails((current) => ({ ...current, phone: event.target.value }))} />
+            </label>
+            <div className="profile-settings-actions"><button className="button button-primary" type="submit" disabled={profileBusy || !online}>{profileBusy ? "Saving…" : "Save details"}</button></div>
+          </form>
+
+          <form className="panel profile-settings-card" onSubmit={(event) => void saveUsername(event)}>
+            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="role" size={17} /></span><div><h2>Username</h2><p className="muted">An optional unique account name. Sign in with your email.</p></div></div>
+            {usernameError && <div className="notice notice-error" role="alert">{usernameError}</div>}
+            {usernameMessage && <div className="notice notice-success" role="status">{usernameMessage}</div>}
+            <label className="field">Username
+              <input type="text" autoComplete="username" maxLength={40} pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,39}" value={username} onChange={(event) => setUsername(event.target.value)} disabled={!usernameAvailable || usernameBusy} />
+              <small className="field-help">Optional and unique. Use 3–40 letters, numbers, dots, underscores or hyphens.</small>
+            </label>
+            <div className="profile-settings-actions"><button className="button button-primary" type="submit" disabled={!usernameAvailable || usernameLoading || usernameBusy || username === savedUsername || !online}>{usernameBusy ? "Saving…" : usernameLoading ? "Loading…" : "Save username"}</button></div>
+          </form>
+        </div>
 
         <div className="profile-settings-security">
           <form className="panel profile-settings-card" onSubmit={(event) => void saveEmail(event)}>
-            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="assignment" size={17} /></span><div><h2>Email address</h2><p className="muted">Used to sign in and recover your account.</p></div></div>
+            <div className="profile-settings-card-heading"><span className="profile-settings-icon"><Icon name="assignment" size={17} /></span><div><h2>Email address</h2><p className="muted">Used to sign in and recover your account. Changes take effect immediately.</p></div></div>
             {emailError && <div className="notice notice-error" role="alert">{emailError}</div>}
             {emailMessage && <div className="notice notice-success" role="status">{emailMessage}</div>}
             <label className="field">Email
               <input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} />
             </label>
-            <div className="profile-settings-actions"><button className="button button-primary" type="submit" disabled={emailBusy || !online}>{emailBusy ? "Sending…" : "Update email"}</button></div>
+            <div className="profile-settings-actions"><button className="button button-primary" type="submit" disabled={emailBusy || !online}>{emailBusy ? "Updating…" : "Update email"}</button></div>
           </form>
 
           <form className="panel profile-settings-card" onSubmit={(event) => void changePassword(event)}>
