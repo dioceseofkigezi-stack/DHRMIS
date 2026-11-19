@@ -368,6 +368,7 @@ export function moduleWriteRoles(path: string) {
 }
 
 export function canAccessModule(path: string, roles: string[]) {
+  if (path === "/profile") return true;
   if (roles.includes("SUPER_SYSTEM_ADMIN")) return systemAdminOnlyPaths.has(path);
   const allowed = moduleReadRoles(path);
   return roles.some((role) => allowed.includes(role));

@@ -5,6 +5,7 @@ import { workspacePath } from "@/core/organizational-scope/workspaces";
 
 export interface SidebarProps {
   accountName: string;
+  accountAvatarUrl: string;
   signingOut: boolean;
   sidebarCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -13,7 +14,7 @@ export interface SidebarProps {
   onSignOut: () => void;
 }
 
-export function SidebarFrame({ roleLabel, accountName, signingOut, sidebarCollapsed, onToggleCollapse, onNavigate, onSignOut, children }: SidebarProps & {
+export function SidebarFrame({ roleLabel, accountName, accountAvatarUrl, signingOut, sidebarCollapsed, onToggleCollapse, onNavigate, onSignOut, children }: SidebarProps & {
   roleLabel: string;
   children: ReactNode;
 }) {
@@ -39,13 +40,20 @@ export function SidebarFrame({ roleLabel, accountName, signingOut, sidebarCollap
         {children}
       </nav>
       <div className="sidebar-bottom">
-        <div className="account-row"><span className="avatar">{accountName.slice(0, 1).toUpperCase()}</span><span className="account-name"><strong>{accountName}</strong><small>Signed in</small></span></div>
+        <SidebarLink to="/profile" label="Account settings" icon="settings" onNavigate={onNavigate} />
+        <div className="account-row"><AccountAvatar name={accountName} imageUrl={accountAvatarUrl} /><span className="account-name"><strong>{accountName}</strong><small>Signed in</small></span></div>
         <button className="button button-secondary sidebar-signout" type="button" aria-label={signingOut ? "Signing out" : "Sign out"} title={signingOut ? "Signing out" : "Sign out"} onClick={onSignOut} disabled={signingOut}>
           <Icon name="signOut" size={14} /><span className="sidebar-signout-label">{signingOut ? "Signing out..." : "Sign out"}</span>
         </button>
       </div>
     </>
   );
+}
+
+export function AccountAvatar({ name, imageUrl }: { name: string; imageUrl: string }) {
+  return <span className="avatar" aria-hidden="true">
+    {imageUrl ? <img src={imageUrl} alt="" /> : name.slice(0, 1).toUpperCase()}
+  </span>;
 }
 
 export function SidebarLink({ to, label, icon, onNavigate }: {

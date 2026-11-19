@@ -554,6 +554,36 @@ tbody tr:hover { background: #fbfcfb; }
 .admin-report-card > strong { color: #2d4235; font-size: 23px; letter-spacing: -.04em; }
 .admin-report-card > .muted { min-height: 27px; margin: 0; font-size: 12px; line-height: 1.5; }
 .admin-report-card .eyebrow { margin: 0 0 4px; }
+.admin-report-overview { display: grid; grid-template-columns: minmax(220px, 1fr) 2fr; gap: 24px; align-items: start; padding: 17px; }
+.admin-report-overview-copy .eyebrow { margin: 0 0 5px; }
+.admin-report-overview-copy h2 { margin: 0 0 5px; color: #34483c; font-size: 15px; }
+.admin-report-overview-copy p { max-width: 480px; margin: 0; color: #758279; font-size: 12px; line-height: 1.5; }
+.admin-report-period-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; }
+.admin-report-period-details > div { display: grid; align-content: start; gap: 5px; min-width: 0; }
+.admin-report-period-details dt { color: #78857d; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.admin-report-period-details dd { margin: 0; color: #34483c; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.admin-period-comparison { color: #6c7c91; font-size: 12px; white-space: nowrap; }
+.admin-report-meta { display: flex; justify-content: space-between; align-items: center; padding: 0 17px 10px; color: #758279; font-size: 12px; }
+.admin-category-band { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; padding: 17px 17px 0; }
+.admin-category-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 15px; border: 1px solid #e5ece7; border-radius: 10px; background: #fff; }
+.admin-category-card > div { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.admin-category-card strong { margin: 0; color: #24364b; font-size: 13px; }
+.admin-category-total { color: #2d4235; font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.admin-category-card small { color: #758279; font-size: 11px; text-align: right; }
+.admin-report-category-heading { margin: 18px 17px 8px; color: #6c7c91; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.admin-report-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.admin-report-card-value { display: grid; justify-items: end; gap: 6px; flex: 0 0 auto; }
+.admin-report-card-value > strong { color: #2d4235; font-size: 22px; letter-spacing: -.03em; }
+.admin-report-card-description { margin: 2px 0 0; color: #758279; font-size: 11px; line-height: 1.4; min-width: 0; }
+.admin-report-comparison { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #758279; font-size: 11px; }
+.admin-report-trend { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; padding-top: 7px; border-top: 1px solid #edf1ee; }
+.admin-report-trend-copy { display: grid; gap: 3px; color: #758279; font-size: 10px; line-height: 1.35; text-align: right; }
+.admin-delta { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 8px; white-space: nowrap; border: 1px solid transparent; }
+.admin-delta--up { color: #167a4c; background: #eef6f0; border-color: #b9dccf; }
+.admin-delta--down { color: #b3432e; background: #fbeae5; border-color: #e3bdb0; }
+.admin-delta--neutral { color: #6c718f; background: #f1f1f7; border-color: #d7dce3; }
+.admin-sparkline { overflow: visible; }
+.admin-sparkline polyline { stroke-linejoin: round; }
 .admin-health-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
 .admin-health-card { display: grid; justify-items: start; gap: 10px; padding: 14px; }
 .admin-health-card > div { display: flex; align-items: center; gap: 9px; }
@@ -568,7 +598,8 @@ tbody tr:hover { background: #fbfcfb; }
 .admin-monitor-summary > span { white-space: nowrap; }
 
 @media (max-width: 1100px) {
-  .admin-metric-grid, .admin-report-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-metric-grid, .admin-report-grid, .admin-category-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-report-overview { grid-template-columns: 1fr; gap: 14px; }
   .admin-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-dashboard-grid { grid-template-columns: 1fr; }
 }
@@ -585,7 +616,8 @@ tbody tr:hover { background: #fbfcfb; }
   .admin-report-controls .admin-filter-controls .search-box { flex-basis: 100%; }
 }
 @media (max-width: 480px) {
-  .admin-metric-grid, .admin-report-grid, .admin-health-grid { grid-template-columns: 1fr; }
+  .admin-metric-grid, .admin-report-grid, .admin-category-band, .admin-health-grid { grid-template-columns: 1fr; }
+  .admin-report-period-details { grid-template-columns: 1fr; }
   .admin-function-card { min-height: 70px; }
   .admin-activity-list li { grid-template-columns: 8px minmax(0, 1fr); }
   .admin-activity-list time { grid-column: 2; text-align: left; }
@@ -715,6 +747,9 @@ tbody tr:hover { background: #fbfcfb; }
 
 :root[data-theme="dark"] :is(h1, h2, h3, strong, td, dd, .sidebar-protection, .breadcrumb strong, .page-heading h1, .metric-value, .panel-heading h2, .panel-accent h2, .quick-link strong, .workspace-card-copy strong, .dashboard-note h2, .registration-heading h2, .records-toolbar strong, .empty-state h2, .modal-heading h2, .field, .form-stack label, .search-box input, .global-search-input input, .search-result, .profile-menu-name, .profile-menu-panel strong, .employee-profile-identity h1, .profile-summary-card h2, .profile-panel-heading h2, .profile-summary-card dd, .profile-data-panel td, .admin-metric-card strong, .admin-function-card strong, .admin-activity-list strong, .admin-capability-note strong, .admin-table-toolbar strong, .admin-table-state strong, .admin-data-table td, .admin-role-name, .admin-role-card h3, .admin-report-controls h2, .admin-report-card h3, .admin-report-card > strong, .document-upload-panel > summary, .admin-monitor-summary > div strong) { color: var(--ink); }
 :root[data-theme="dark"] :is(.brand-name small, .nav-caption, .sidebar-protection small, .account-name small, .breadcrumb, .breadcrumb-separator, .topbar-date, .muted, .metric-label, .metric-hint, .quick-link small, .quick-link-arrow, .workspace-card-copy small, .workspace-card-arrow, .access-note, .records-toolbar, th, .table-state, .empty-state, .notice-dismiss, .search-message, .search-result-copy small, .profile-menu-panel small, .field-help, .profile-breadcrumb, .profile-tab, .profile-summary-card dt, .profile-panel-heading span, .profile-empty, .pagination-bar, .notification-copy small, .notification-copy time, .notification-empty, .document-drop-zone small, .document-upload-footer p, .admin-metric-card > div > span, .admin-metric-card small, .admin-function-card small, .admin-activity-list small, .admin-activity-list time, .admin-inline-empty, .admin-inline-empty span, .admin-muted-state, .admin-capability-note, .admin-access-explainer, .admin-table-toolbar, .admin-filter-label, .admin-table-state, .admin-data-table td > small, .admin-data-table code, .admin-role-card code, .admin-role-scope, .admin-role-card footer, .admin-report-controls > div:first-child .muted, .admin-health-card, .admin-monitor-summary) { color: var(--muted); }
+:root[data-theme="dark"] .admin-category-card { border-color: var(--border); background-color: var(--surface); }
+:root[data-theme="dark"] :is(.admin-report-overview-copy h2, .admin-report-period-details dd, .admin-category-card strong, .admin-category-total, .admin-report-card-value > strong) { color: var(--ink); }
+:root[data-theme="dark"] :is(.admin-report-overview-copy p, .admin-report-period-details dt, .admin-category-card small, .admin-report-card-description, .admin-report-comparison, .admin-report-trend-copy) { color: var(--muted); }
 :root[data-theme="dark"] .nav-link,
 :root[data-theme="dark"] .text-button,
 :root[data-theme="dark"] .text-link,
@@ -826,6 +861,44 @@ tbody tr:hover { background: #fbfcfb; }
 :root[data-theme="dark"] .admin-chart-period { border-color: #2d3b4d; background: #0b0b10; }
 :root[data-theme="dark"] :is(.button-secondary, .theme-control, .search-box, .global-search-input, .notification-trigger, .admin-filter-label select, .admin-filter-label input, .admin-role-edit select, .field input:not([type="checkbox"]), .field select, .field textarea, .login-card input, .searchable-select-options, .searchable-select-option, .checkbox-control) { background-color: #0b0b10; }
 :root[data-theme="dark"] .modal-backdrop { background: rgb(0 0 0 / 72%); }
+
+.avatar { overflow: hidden; }
+.avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.sidebar-bottom > .nav-link { margin-bottom: 5px; }
+.profile-settings-page .page-heading { margin-bottom: 20px; }
+.profile-photo-panel { display: flex; align-items: center; gap: 22px; padding: 23px; }
+.profile-photo-avatar { display: grid; width: 88px; height: 88px; flex: 0 0 88px; place-items: center; overflow: hidden; border: 3px solid #edf0ff; border-radius: 50%; color: var(--brand); background: var(--brand-soft); font-size: 30px; font-weight: 700; }
+.profile-photo-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-photo-copy { min-width: 0; flex: 1; }
+.profile-photo-copy .eyebrow { margin-bottom: 4px; }
+.profile-photo-copy h2 { margin: 0 0 5px; color: var(--ink); font-size: 18px; }
+.profile-photo-copy > .muted { margin-bottom: 12px; }
+.profile-photo-copy .notice { max-width: 700px; }
+.profile-photo-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.profile-photo-choose { position: relative; overflow: hidden; cursor: pointer; }
+.profile-photo-choose input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.profile-photo-remove { min-height: 36px; }
+.profile-settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 16px; margin-top: 16px; }
+.profile-settings-security { display: grid; gap: 16px; }
+.profile-settings-card { display: grid; align-content: start; gap: 14px; padding: 21px; }
+.profile-settings-card .notice { margin: 0; }
+.profile-settings-card-heading { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 2px; }
+.profile-settings-card-heading h2 { margin: 0 0 3px; color: var(--ink); font-size: 16px; }
+.profile-settings-card-heading .muted { margin: 0; }
+.profile-settings-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 9px; color: var(--brand); background: var(--brand-soft); }
+.profile-settings-actions { display: flex; justify-content: flex-end; padding-top: 2px; }
+:root[data-theme="dark"] .profile-photo-avatar { border-color: #303044; color: #c1caff; background: #2b3653; }
+:root[data-theme="dark"] .profile-settings-icon { color: #c1caff; background: #2b3653; }
+
+@media (max-width: 760px) {
+  .profile-settings-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .profile-photo-panel { align-items: flex-start; gap: 15px; padding: 16px; }
+  .profile-photo-avatar { width: 64px; height: 64px; flex-basis: 64px; font-size: 24px; }
+  .profile-settings-card { padding: 17px; }
+}
 
 @media (max-width: 760px) {
   .login-theme-control { top: 12px; right: 12px; }

@@ -52,6 +52,32 @@ function editableDetails(user: {
   };
 }
 
+function randomIndex(length: number) {
+  const range = Math.floor(256 / length) * length;
+  const byte = new Uint8Array(1);
+  do crypto.getRandomValues(byte); while (byte[0] >= range);
+  return byte[0] % length;
+}
+
+function randomCharacter(characters: string) {
+  return characters[randomIndex(characters.length)];
+}
+
+function createTemporaryPassword() {
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const symbols = "!@#$%&*+-_=.?";
+  const all = lower + upper + digits + symbols;
+  const characters = [randomCharacter(lower), randomCharacter(upper), randomCharacter(digits), randomCharacter(symbols)];
+  while (characters.length < 24) characters.push(randomCharacter(all));
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomIndex(index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+  }
+  return characters.join("");
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return respond(405, { message: "Use POST to manage account details." });
@@ -111,17 +137,65 @@ Deno.serve(async (request: Request) => {
   const input = body as Record<string, unknown>;
   const action = input.action;
   const userId = typeof input.userId === "string" ? input.userId : "";
-  if (action !== "get" && action !== "update" && action !== "delete") return respond(400, { message: "Choose a valid account action." });
+  if (action !== "get" && action !== "update" && action !== "delete" && action !== "reset-password") return respond(400, { message: "Choose a valid account action." });
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
     return respond(400, { message: "Choose a valid user account." });
   }
-  if (action === "delete" && userId === callerData.user.id) {
-    return respond(403, { message: "You cannot delete the account you are currently using." });
+  if ((action === "delete" || action === "reset-password") && userId === callerData.user.id) {
+    return respond(403, { message: action === "delete" ? "You cannot delete the account you are currently using." : "You cannot reset the password for the account you are currently using." });
   }
 
   const { data: targetData, error: targetError } = await adminClient.auth.admin.getUserById(userId);
   const targetUser = targetData.user;
   if (targetError || !targetUser) return respond(404, { message: "The selected account could not be found." });
+  if (action === "reset-password") {
+    // End existing tracked sessions before changing the password. That prevents
+    // access tokens issued before the reset from continuing to access the app.
+    const { error: revokeError } = await adminClient.from("user_sessions")
+      .update({ isactive: false })
+      .eq("user_id", userId)
+      .eq("isactive", true);
+    if (revokeError) return respond(500, { message: "The account's active sessions could not be revoked. The password was not reset." });
+
+    const temporaryPassword = createTemporaryPassword();
+    const { error: passwordError } = await adminClient.auth.admin.updateUserById(userId, {
+      password: temporaryPassword,
+      app_metadata: { ...(targetUser.app_metadata ?? {}), must_change_password: true },
+    });
+    if (passwordError) {
+      console.error("admin-user-account: password reset failed", {
+        code: passwordError.code,
+        status: passwordError.status,
+        message: passwordError.message,
+      });
+      return respond(502, { message: "The password could not be reset. Check the Auth logs, then try again." });
+    }
+
+    const actorMetadata = callerData.user.user_metadata ?? {};
+    const actorName = (typeof actorMetadata.full_name === "string" && actorMetadata.full_name) ||
+      (typeof actorMetadata.name === "string" && actorMetadata.name) || callerData.user.email || null;
+    const { error: auditError } = await adminClient.from("audit_log").insert({
+      user_id: callerData.user.id,
+      user_name: actorName,
+      action: "USER_PASSWORD_RESET",
+      module: "user_accounts",
+      record_id: userId,
+      record_type: "auth.users",
+      result: "Success",
+      before_values: { must_change_password: targetUser.app_metadata?.must_change_password === true },
+      after_values: { must_change_password: true, active_sessions_revoked: true },
+      purpose: "Super/System Administrator reset a user's password.",
+      context: "Generated a one-time password for display to the administrator; the user must change it at first sign-in.",
+      session_id: trackedSession.id,
+    });
+
+    return respond(200, {
+      temporaryPassword,
+      message: "The password was reset. The user must change this one-time password at first sign-in.",
+      auditLogged: !auditError,
+    });
+  }
+
   if (action === "delete") {
     const { data: targetRoles, error: targetRolesError } = await adminClient.from("user_roles")
       .select("role_code,isactive,issuspended,accountexpiry,lockeduntil")
