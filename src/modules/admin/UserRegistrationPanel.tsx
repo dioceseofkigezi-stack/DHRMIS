@@ -73,23 +73,46 @@ export default function UserRegistrationPanel({ online, onSuccess }: { online: b
         body: { fullName: fullName.trim(), email: email.trim(), roleCode },
       });
       if (createError) throw createError;
-      const temporaryPassword = data && typeof data === "object" && "temporaryPassword" in data && typeof data.temporaryPassword === "string"
+
+      // The account may already exist if an older register-user deployment
+      // returned success without its temporary password. Refresh the directory
+      // and recover a new one-time password through the administrator reset flow.
+      setFullName("");
+      setEmail("");
+      setRoleCode("");
+      onSuccess?.();
+
+      let temporaryPassword = data && typeof data === "object" && "temporaryPassword" in data && typeof data.temporaryPassword === "string"
         ? data.temporaryPassword
         : "";
+      let auditLogged = !(data && typeof data === "object" && "auditLogged" in data && data.auditLogged === false);
+
+      if (!temporaryPassword && data && typeof data === "object" && "userId" in data && typeof data.userId === "string") {
+        const { data: resetData, error: resetError } = await supabase.functions.invoke("admin-user-account", {
+          body: { action: "reset-password", userId: data.userId },
+        });
+        if (resetError) {
+          throw new Error(await functionErrorMessage(
+            resetError,
+            "The account was created, but a one-time password could not be recovered. Use Reset password in User access to generate one."
+          ));
+        }
+        temporaryPassword = resetData && typeof resetData === "object" && "temporaryPassword" in resetData && typeof resetData.temporaryPassword === "string"
+          ? resetData.temporaryPassword
+          : "";
+        auditLogged = auditLogged && !(resetData && typeof resetData === "object" && "auditLogged" in resetData && resetData.auditLogged === false);
+      }
+
       if (!temporaryPassword) {
-        throw new Error("The account was created, but its one-time password was not returned. Contact your system administrator before sharing the account details.");
+        throw new Error("The account was created, but its one-time password could not be recovered. Use Reset password in User access to generate one before the user signs in.");
       }
       const selectedRole = roleOptions.find((role) => role.code === roleCode)?.label ?? roleCode;
       setCreatedAccount({
         email: email.trim(),
         role: selectedRole,
         temporaryPassword,
-        auditLogged: !(data && typeof data === "object" && "auditLogged" in data && data.auditLogged === false),
+        auditLogged,
       });
-      setFullName("");
-      setEmail("");
-      setRoleCode("");
-      onSuccess?.();
     } catch (reason) {
       setError(await functionErrorMessage(reason, "The account could not be created. Check the details and try again."));
     } finally {

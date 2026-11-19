@@ -11,6 +11,15 @@ function friendlySignInError(reason: unknown) {
     if (message.includes("invalid api key") || message.includes("fetch")) {
       return "The sign-in service is unavailable. Contact your system administrator.";
     }
+    if (message.includes("invalid login credentials") || message.includes("invalid_credentials")) {
+      return "The email or password is incorrect. For a new account, use the one-time password shown to the administrator. If it was not received, an administrator can reset it in User access.";
+    }
+    if (message.includes("email not confirmed")) {
+      return "This account's email is not confirmed. Contact your system administrator.";
+    }
+    if (message.includes("too many requests") || message.includes("rate limit")) {
+      return "There have been too many sign-in attempts. Wait a few minutes, then try again.";
+    }
   }
   return "Sign-in could not be completed. Check your details or contact your system administrator.";
 }
@@ -35,7 +44,7 @@ export default function LoginPage() {
     setError("");
     setSubmitting(true);
     try {
-      await signIn(email.trim(), password);
+      await signIn(email.trim().toLowerCase(), password);
       navigate("/dashboard", { replace: true });
     } catch (reason) {
       setError(friendlySignInError(reason));
